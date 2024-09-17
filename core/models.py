@@ -37,7 +37,12 @@ class PersonalEmoji:
         self.image_hash: imagehash.ImageHash | None = None
 
     async def create_image_hash(self) -> imagehash.ImageHash:
-        return await self.to_image_hash(self.emoji)
+        self.image_hash = await self.to_image_hash(self.emoji)
+        return self.image_hash
+
+    def generate_from_hash(self, img_hash: str) -> imagehash.ImageHash:
+        self.image_hash = imagehash.hex_to_hash(img_hash)
+        return self.image_hash
 
     @staticmethod
     async def to_image_hash(emoji: discord.Emoji | discord.PartialEmoji | PersonalEmoji) -> imagehash.ImageHash:
@@ -81,10 +86,10 @@ class PersonalEmoji:
             if data is not None:
                 img_hash = data['hash']
                 if img_hash != '':
-                    self.image_hash = imagehash.hex_to_hash(img_hash)
+                    self.generate_from_hash(img_hash)
                 else:
-                    self.image_hash = await self.create_image_hash()
-                    await self.bot.pool.execute("UPDATE emoji SET hash=$2 WHERE id=$1", self.id, str(self.image_hash))
+                    hashs = await self.create_image_hash()
+                    await self.bot.pool.execute("UPDATE emoji SET hash=$2 WHERE id=$1", self.id, str(hashs))
                 self.db_data = data
                 return self.db_data
 
@@ -92,10 +97,10 @@ class PersonalEmoji:
         await self.bot.ensure_user(discord.Object(added))
         img_hash = await self.create_image_hash()
         self.db_data = await self.bot.pool.fetchrow(
-            "INSERT INTO emoji(id, fullname, added_by, hash) VALUES($1, $2, $3, $4) ON CONFLICT(id) DO NOTHING RETURNING *",
+            "INSERT INTO emoji(id, fullname, added_by, hash) VALUES($1, $2, $3, $4) ON CONFLICT(id) "
+            "DO NOTHING RETURNING *",
             self.id, self.name, added, str(img_hash)
         )
-        self.image_hash = img_hash
         return self.db_data
 
     def used(self, user: discord.User | discord.Member, value: int = 1) -> None:
