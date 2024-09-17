@@ -13,7 +13,8 @@ Install Python dependencies
 pip install -r requirements.txt
 ```
 Configure **default.env** and rename it to **.env**.
-The description for each environment variable are talked below.
+
+The description for each environment variable are described below.
 
 |          VARIABLE           |  TYPE   |                           DESCRIPTION                            |
 |:---------------------------:|:-------:|:----------------------------------------------------------------:|
