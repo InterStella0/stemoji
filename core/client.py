@@ -33,6 +33,20 @@ class StellaEmojiBot(commands.Bot):
         self.normal_emojis: NormalDiscordEmoji = NormalDiscordEmoji(self)
         self.pool: asyncpg.Pool | None = None
         self.check_once(self.called_everywhere)
+        self.__get_user_lock: asyncio.Lock = asyncio.Lock()
+
+    async def get_or_fetch_user(
+            self, user_id: int, *, __user_cached={}  # noqa
+    ):
+        """I need to get or fetch and auto cache."""
+
+        if (user := self.get_user(user_id)) is None:
+            async with self.__get_user_lock:
+                if (user := __user_cached.get(user_id)) is None:
+                    user = await self.fetch_user(user_id)
+                    __user_cached[user.id] = user
+
+        return user
 
     def called_everywhere(self, ctx: EContext): # noqa
         emoji_context.set(ctx.author)

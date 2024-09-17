@@ -7,7 +7,7 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel
+from core.converter import PersonalEmojiModel, PrivateEmojiModel
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
@@ -40,13 +40,23 @@ class Emoji(commands.GroupCog):
                 await ctx.send(emoji)
             return
 
-        emojis = discord.utils.as_chunks(ctx.bot.emojis_users.values(), 12)
+        author = ctx.author
+        emojis = [*ctx.bot.emojis_users.values()]
+        coros = [asyncio.create_task(emoji.user_usage(author)) for emoji in emojis]
+        async with ctx.typing(ephemeral=True):
+            await asyncio.gather(*coros)
+
+        emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
+        emojis = discord.utils.as_chunks(emojis, 12)
         async for i, item in iter_pagination(PaginationContextView(emojis), context=ctx):
-            embed = discord.Embed(title="Your emojis", color=ctx.bot.primary_color)
+            embed = discord.Embed(title="View of emojis", color=ctx.bot.primary_color)
             for emoji in item.data:
+                emoji: PersonalEmoji
                 embed.add_field(
                     name=f"{emoji} {emoji.name}",
-                    value=f"**Used:** {0}\n**Created At:**{discord.utils.format_dt(emoji.created_at, 'd')}"
+                    value=f"**Used:** {emoji.usages[author.id]}\n"
+                          f"**Added By:**{await emoji.resolve_owner()}\n"
+                          f"**Created At:**{discord.utils.format_dt(emoji.created_at, 'd')}"
                 )
             if i == 0:
                 item.format(embed=embed, ephemeral=True)
@@ -132,13 +142,13 @@ class Emoji(commands.GroupCog):
         return default[:25]
 
     @commands.hybrid_command()
-    async def delete(self, ctx: EContext, emoji: PersonalEmojiModel):
+    async def delete(self, ctx: EContext, emoji: PrivateEmojiModel):
         async with ctx.typing(ephemeral=True):
             await emoji.delete(ctx.bot)
             await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
     @commands.hybrid_command()
-    async def rename(self, ctx: EContext, emoji: PersonalEmojiModel, new_name: str | None = None):
+    async def rename(self, ctx: EContext, emoji: PrivateEmojiModel, new_name: str | None = None):
         if new_name is None:
             if interaction := ctx.interaction:
                 await interaction.response.send_modal(RenameEmojiModal(emoji))

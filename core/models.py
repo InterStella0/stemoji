@@ -35,6 +35,7 @@ class PersonalEmoji:
         self.update_tasks: dict[int, asyncio.Task] = {}
         self.lock: asyncio.Lock = asyncio.Lock()
         self.image_hash: imagehash.ImageHash | None = None
+        self.added_by: discord.User | discord.Member | discord.Object = None
 
     async def create_image_hash(self) -> imagehash.ImageHash:
         self.image_hash = await self.to_image_hash(self.emoji)
@@ -77,6 +78,15 @@ class PersonalEmoji:
     def __getattr__(self, item):
         return getattr(self.emoji, item)
 
+    async def resolve_owner(self) -> discord.User | discord.Member:
+        if self.added_by is None:
+            await self.ensure()
+
+        if not isinstance(self.added_by, (discord.User, discord.Member)):
+            self.added_by = await self.bot.get_or_fetch_user(self.added_by.id)
+
+        return self.added_by
+
     async def ensure(self, user: discord.User | discord.Member | discord.Object = None) -> asyncpg.Record:
         if self.db_data:
             return self.db_data
@@ -91,10 +101,13 @@ class PersonalEmoji:
                     hashs = await self.create_image_hash()
                     await self.bot.pool.execute("UPDATE emoji SET hash=$2 WHERE id=$1", self.id, str(hashs))
                 self.db_data = data
+                self.added_by = discord.Object(data['added_by'])
                 return self.db_data
 
         added = getattr(user, 'id', self.bot.user.id)
-        await self.bot.ensure_user(discord.Object(added))
+        added_by = discord.Object(added)
+        await self.bot.ensure_user(added_by)
+        self.added_by = user or added_by
         img_hash = await self.create_image_hash()
         self.db_data = await self.bot.pool.fetchrow(
             "INSERT INTO emoji(id, fullname, added_by, hash) VALUES($1, $2, $3, $4) ON CONFLICT(id) "
@@ -196,10 +209,13 @@ class PersonalEmoji:
             raise app_commands.AppCommandError(str(e)) from None
 
     @staticmethod
-    async def autocomplete(interaction: EInteraction, current: str) -> list[Choice[str]]:
-        fuzzy_emojis = starlight.search(
-            interaction.client.emojis_users.values(), sort=True, name=FuzzyInsensitive(current)
-        )
+    async def autocomplete(interaction: EInteraction, current: str, *, owner_only: bool = False) -> list[Choice[str]]:
+        if owner_only and not await interaction.client.is_owner(interaction.user):
+            source = [emoji for emoji in interaction.client.emojis_users.values() if emoji.added_by == interaction.user]
+        else:
+            source = interaction.client.emojis_users.values()
+
+        fuzzy_emojis = starlight.search(source, sort=True, name=FuzzyInsensitive(current))
         return [Choice(name=e.name, value=str(e.id)) for e in fuzzy_emojis[:25]]
 
 
