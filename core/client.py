@@ -54,8 +54,14 @@ class StellaEmojiBot(commands.Bot):
         self.emojis_users = {emoji.id: PersonalEmoji(self, emoji) for emoji in await self.fetch_application_emojis()}
         self.emoji_names = {emoji.name: emoji.id for emoji in self.emojis_users.values()}
         await self.normal_emojis.fill()
-        # TODO: Sync emojis with db
         await asyncio.gather(*[emoji.ensure() for emoji in self.emojis_users.values()])
+        emojis_records = await self.pool.fetch("SELECT * FROM emoji")
+        to_delete = []
+        for emoji in emojis_records:
+            if emoji['id'] not in self.emojis_users:
+                to_delete.append(emoji['id'])
+
+        await self.pool.executemany("DELETE FROM emoji WHERE id=$1", to_delete)
 
     async def setup_hook(self):
         await self.sync_emojis()
@@ -117,7 +123,6 @@ class StellaEmojiBot(commands.Bot):
 
         emoji = await self.create_application_emoji(name=emoji_name or emoji.name, image=img_bytes)
         new_emoji = PersonalEmoji(self, emoji)
-        await self.ensure_user(user)
         await new_emoji.ensure(user)
         self.emojis_users[emoji.id] = new_emoji
         self.emoji_names[new_emoji.name] = emoji.id
@@ -145,7 +150,7 @@ class NormalDiscordEmoji:
 
     async def fill(self) -> None:
         pool = self.bot.pool
-        last_data = await pool.fetchrow("SELECT * FROM discord_normal_emojis ORDER BY fetched_at LIMIT 1")
+        last_data = await pool.fetchrow("SELECT * FROM discord_normal_emojis ORDER BY fetched_at DESC LIMIT 1")
         is_new = False
         if last_data:
             created_at = last_data['fetched_at']
@@ -159,7 +164,9 @@ class NormalDiscordEmoji:
             is_new = True
 
         if is_new:
-            await pool.execute("INSERT INTO discord_normal_emojis(json_data) VALUES($1)", json.dumps(actual_data))
+            await pool.execute(
+                "INSERT INTO discord_normal_emojis(json_data) VALUES($1)", json.dumps(actual_data)
+            )
 
         self.mapping = {name: NormalEmoji(name=name, unicode=unicode) for name, unicode in actual_data.items()}
 
