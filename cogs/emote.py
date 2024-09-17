@@ -22,6 +22,7 @@ from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find
 class Emoji(commands.GroupCog):
     @commands.hybrid_command()
     async def send(self, ctx: EContext, emoji: PersonalEmojiModel):
+        """Choosing how many emoji to send to the user. Text commands just sent the emoji normally."""
         if ctx.interaction:
             view = SendEmojiView(emoji)
             await view.start(ctx, content=emoji, ephemeral=True)
@@ -32,6 +33,7 @@ class Emoji(commands.GroupCog):
 
     @commands.hybrid_command(name="view")
     async def _view(self, ctx: EContext, emoji: PersonalEmojiModel | None = None):
+        """Detailed information about each emoji that was stored."""
         if emoji is not None:
             if ctx.interaction:
                 view = SendEmojiView(emoji)
@@ -65,6 +67,7 @@ class Emoji(commands.GroupCog):
 
     @commands.hybrid_command(name="list")
     async def _list(self, ctx: EContext):
+        """Briefly list all the emojis you've used."""
         coros = [asyncio.create_task(emoji.user_usage(ctx.author)) for emoji in ctx.bot.emojis_users.values()]
         async with ctx.typing(ephemeral=True):
             await asyncio.gather(*coros)
@@ -83,6 +86,7 @@ class Emoji(commands.GroupCog):
 
     @commands.hybrid_command(name="text")
     async def _text(self, ctx: EContext, text: str | None = None) -> None:
+        """Send messages using emojis which supports autocomplete of custom emojis."""
         if text is None:
             if ctx.interaction:
                 await ctx.interaction.response.send_modal(TextEmojiModal())
@@ -143,12 +147,14 @@ class Emoji(commands.GroupCog):
 
     @commands.hybrid_command()
     async def delete(self, ctx: EContext, emoji: PrivateEmojiModel):
+        """Delete emoji that you own."""
         async with ctx.typing(ephemeral=True):
             await emoji.delete(ctx.bot)
             await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
     @commands.hybrid_command()
     async def rename(self, ctx: EContext, emoji: PrivateEmojiModel, new_name: str | None = None):
+        """Rename emoji that you own."""
         if new_name is None:
             if interaction := ctx.interaction:
                 await interaction.response.send_modal(RenameEmojiModal(emoji))
@@ -168,6 +174,7 @@ class Emoji(commands.GroupCog):
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
 async def steal_emoji(interaction: EInteraction, message: discord.Message):
+    """Find custom emojis from a message and stores it into the bot."""
     await interaction.response.defer(ephemeral=True)
     bot = interaction.client
     ctx = await bot.get_context(interaction)

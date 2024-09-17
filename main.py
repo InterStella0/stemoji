@@ -1,5 +1,3 @@
-import os
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -15,14 +13,16 @@ bot = StellaEmojiBot()
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
 async def e(ctx: EContext, emoji: PersonalEmojiModel):
+    """Emote shortcut instead of a long ass name."""
     await ctx.send(f"{emoji:u}")
 
 
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: EContext, guild: discord.Guild | None = None):
+    """Run this command to register your slash commands on discord."""
     synced = await bot.tree.sync(guild=guild)
-    await ctx.send(f"OK {len(synced):,}")
+    await ctx.send(f"Synced {len(synced)} commands.")
 
 token = env("BOT_TOKEN")
 if not token:

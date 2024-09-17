@@ -3,15 +3,19 @@
 This discord bot allows you to use customize emojis that you put in the bot. It utilizes
 the new application emoji features that supports up to 4000 custom emojis!
 
+**(this is still in development babes)**
+
 ## Self-host setup
-Clone the repository
+### Clone the repository
 ```
 git clone https://github.com/InterStella0/stemoji
 ```
+### Python
 Install Python dependencies
 ```commandline
 pip install -r requirements.txt
 ```
+### Environment variable
 Configure **default.env** and rename it to **.env**.
 
 The description for each environment variable are described below.
@@ -29,3 +33,4 @@ The description for each environment variable are described below.
 |       MIRROR_PROFILE        | Boolean | Uses your profile picture and display name as the bot's profile. |
 
 
+## etc
