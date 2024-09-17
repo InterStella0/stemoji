@@ -139,6 +139,7 @@ class PersonalEmoji:
             del self.update_tasks[user_id]
 
         await self.ensure()
+        await self.bot.ensure_user(discord.Object(user_id))
         emoji_used = await self.bot.pool.fetchrow(
             """
             INSERT INTO emoji_used (emoji_id, user_id, amount)
