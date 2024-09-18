@@ -1,31 +1,51 @@
 import asyncio
-import contextvars
 import io
 import traceback
 from typing import Any, TypeVar, Generic
 
 import discord
 import starlight
-from discord import Interaction
 
 from core import errors
-from core.errors import EmojiImageDuplicates
+from core.errors import EmojiImageDuplicates, UserInputError
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
-from utils.general import emoji_context, iter_pagination
+from utils.general import emoji_context
 from utils.parsers import VALID_EMOJI_SEMI, VALID_EMOJI_NORMAL
 
 
 class ContextModal(discord.ui.Modal):
-    async def interaction_check(self, interaction: Interaction, /) -> bool:
+    async def interaction_check(self, interaction: EInteraction, /) -> bool:
         emoji_context.set(interaction.user)
         return await super().interaction_check(interaction)
+
+    async def on_error(self, interaction: EInteraction, error: Exception, /) -> None:
+        if isinstance(error, UserInputError):
+            error_message = str(error)
+        else:
+            error_message = "Something went wrong :/"
+            traceback.print_exception(error)
+        if interaction.response.is_done():
+            await interaction.followup.send(error_message)
+        else:
+            await interaction.response.send_message(error_message)
 
 
 class ContextView(discord.ui.View):
-    async def interaction_check(self, interaction: Interaction, /) -> bool:
+    async def interaction_check(self, interaction: EInteraction, /) -> bool:
         emoji_context.set(interaction.user)
         return await super().interaction_check(interaction)
+
+    async def on_error(self, interaction: EInteraction, error: Exception, item: discord.ui.Item) -> None:
+        if isinstance(error, UserInputError):
+            error_message = str(error)
+        else:
+            error_message = "Something went wrong :/"
+            traceback.print_exception(error)
+        if interaction.response.is_done():
+            await interaction.followup.send(error_message)
+        else:
+            await interaction.response.send_message(error_message)
 
 
 class TextEmojiModal(ContextModal, title="Emoji Support"):
@@ -68,7 +88,10 @@ class RenameEmojiModal(ContextModal, title="Emoji Edit"):
         personal_emoji = self.personal_emoji
         old_name = personal_emoji.name
         new_name = self.name.value.strip()
-        await personal_emoji.rename(new_name)
+        try:
+            await personal_emoji.rename(new_name)
+        except ValueError as e:
+            raise UserInputError(str(e)) from None
         await interaction.followup.send(f'Successfully renamed **{old_name}** to **{new_name}**', ephemeral=True)
 
 

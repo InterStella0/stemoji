@@ -1,10 +1,15 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
 import discord
+from discord.app_commands import AppCommandError
 from discord.ext import commands
 
-from core.models import PersonalEmoji
+if TYPE_CHECKING:
+    from core.models import PersonalEmoji
 
 
-class UserInputError(Exception):
+class UserInputError(AppCommandError):
     pass
 
 

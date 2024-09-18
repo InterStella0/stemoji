@@ -16,6 +16,7 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
+from core.errors import UserInputError
 from core.typings import EContext, EInteraction, StellaEmojiBot
 from utils.general import emoji_context
 from utils.parsers import FuzzyInsensitive
@@ -161,6 +162,9 @@ class PersonalEmoji:
         if " " in new_name:
             raise ValueError("Spaces in names are not allowed.")
 
+        if not (3 <= len(new_name) < 33):
+            raise ValueError("Emoji names must be inbetween 3 to 32 characters.")
+
         self.emoji = await self.emoji.edit(name=new_name)
 
     async def delete(self, bot: StellaEmojiBot) -> None:
@@ -200,14 +204,16 @@ class PersonalEmoji:
 
         if (emote := discord.utils.get(bot.emojis_users.values(), name=argument)) is not None:
             return emote
-        raise commands.CommandError(f"No {argument} emoji found!") from None
+        raise UserInputError(f"No emoji named '{argument}' found!") from None
 
     @classmethod
     async def transform(cls, interaction: EInteraction, argument: str) -> Self:
         try:
             return await cls.converting_emoji(interaction.client, argument)
-        except commands.CommandError as e:
-            raise app_commands.AppCommandError(str(e)) from None
+        except app_commands.AppCommandError:
+            raise
+        except Exception as e:
+            raise app_commands.AppCommandError(str(e))
 
     @staticmethod
     async def autocomplete(interaction: EInteraction, current: str, *, owner_only: bool = False) -> list[Choice[str]]:

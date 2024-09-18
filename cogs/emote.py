@@ -8,6 +8,7 @@ from discord.ext import commands
 
 from core.client import StellaEmojiBot
 from core.converter import PersonalEmojiModel, PrivateEmojiModel
+from core.errors import UserInputError
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
@@ -99,18 +100,16 @@ class Emoji(commands.GroupCog):
                 await interaction.response.send_modal(TextEmojiModal())
             return
 
-        def custom_emoji(match):
-            if (emoji := ctx.bot.get_custom_emoji(match.group('emoji_name'))) is not None:
+        def process_emoji(match):
+            emoji_name = match.group('emoji_name')
+            if (emoji := ctx.bot.get_custom_emoji(emoji_name)) is not None:
                 return f'{emoji:u}'
-            return match.group(0)
-
-        def normal_emoji(match):
-            if (emoji := ctx.bot.normal_emojis.get(match.group('emoji_name'))) is not None:
+            elif (emoji := ctx.bot.normal_emojis.get(emoji_name)) is not None:
                 return emoji.unicode
             return match.group(0)
 
-        text = VALID_EMOJI_SEMI.sub(custom_emoji, text)
-        text = VALID_EMOJI_NORMAL.sub(normal_emoji, text)
+        text = VALID_EMOJI_SEMI.sub(process_emoji, text)
+        text = VALID_EMOJI_NORMAL.sub(process_emoji, text)
         await ctx.send(text)
 
     @_text.autocomplete('text')
@@ -167,7 +166,11 @@ class Emoji(commands.GroupCog):
 
         async with ctx.typing(ephemeral=True):
             old_name = emoji.name
-            await emoji.rename(new_name)
+            try:
+                await emoji.rename(new_name)
+            except ValueError as e:
+                raise UserInputError(str(e)) from None
+
             await ctx.send(f"Sucessfully renamed **{old_name}** to **{new_name}**.", ephemeral=True)
 
 @app_commands.context_menu(name="Steal Emoji")
@@ -180,7 +183,7 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
     ctx = await bot.get_context(interaction)
     emojis = [*PersonalEmoji.find_all_emojis(bot, message.content)]
     if not emojis:
-        raise app_commands.AppCommandError("No custom emoji found!")
+        raise UserInputError("No custom emoji found!")
     elif len(emojis) > 1:
         view = EmojiDownloadView(emojis)
         emoji_dups = {emoji.id: asyncio.create_task(bot.find_image_duplicates(emoji)) for emoji in emojis}

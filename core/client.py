@@ -80,7 +80,7 @@ class StellaEmojiBot(commands.Bot):
     async def setup_hook(self):
         await self.sync_emojis()
         self.emoji_filled.set()
-        cogs = ['cogs.emote', 'cogs.reactions']
+        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
         for cog in cogs:
             await self.load_extension(cog)
 
