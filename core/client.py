@@ -21,6 +21,7 @@ class StellaEmojiBot(commands.Bot):
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.message_content = env("MESSAGE_CONTENT_INTENTS", bool)
+        intents.members = env("MEMBERS_INTENTS", bool)
         cmd_prefix = env("TEXT_COMMAND_PREFIX")
         if env("TEXT_COMMAND_PREFIX_MENTION"):
             cmd_prefix = commands.when_mentioned_or(cmd_prefix)
@@ -81,6 +82,9 @@ class StellaEmojiBot(commands.Bot):
         await self.sync_emojis()
         self.emoji_filled.set()
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
+        if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
+            cogs.append('cogs.mirroring')
+
         for cog in cogs:
             await self.load_extension(cog)
 
