@@ -69,7 +69,7 @@ class MirrorCog(commands.Cog):
 
     async def _profile_sync(self):
         await self.bot.wait_until_ready()
-        await asyncio.sleep(10)
+        await asyncio.sleep(90)
         await self.profile_sync()
 
     async def profile_sync(self):
