@@ -7,6 +7,8 @@ from discord import ClientUser
 from discord.ext import commands
 
 from core.typings import StellaEmojiBot
+from utils.parsers import env
+
 
 class FileLock:
     def __init__(self):
@@ -78,7 +80,8 @@ class MirrorCog(commands.Cog):
             self.client_user = bot.user
             self.original_client_user = bot.user
 
-        await self.save_original_profile()
+        if env("RETAIN_PROFILE", bool):
+            await self.save_original_profile()
         info = await bot.application_info()
         owner = info.owner
 

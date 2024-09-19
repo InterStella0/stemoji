@@ -31,6 +31,7 @@ The description for each environment variable are described below.
 |        DATABASE_DSN         | String  |                   Database connection string.                    |
 |         OWNER_ONLY          | Boolean |            Disallow other people from using your bot.            |
 |       MIRROR_PROFILE        | Boolean | Uses your profile picture and display name as the bot's profile. |
+|       RETAIN_PROFILE        | Boolean |           Recover your bot's profile during shutdown.            |
 
 
 ## etc
