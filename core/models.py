@@ -95,14 +95,14 @@ class PersonalEmoji:
         if user is None:
             data = await self.bot.db.fetch_emoji(self.id)
             if data is not None:
-                img_hash = data['hash']
+                img_hash = data.hash
                 if img_hash != '':
                     self.generate_from_hash(img_hash)
                 else:
                     hashs = await self.create_image_hash()
                     await self.bot.db.update_emoji_hash(self.id, str(hashs))
                 self.db_data = data
-                self.added_by = discord.Object(data['added_by'])
+                self.added_by = discord.Object(data.added_by)
                 return self.db_data
 
         added = getattr(user, 'id', self.bot.user.id)
@@ -210,7 +210,9 @@ class PersonalEmoji:
         return [Choice(name=e.name, value=str(e.id)) for e in fuzzy_emojis[:25]]
 
 
-@dataclasses.dataclass
 class NormalEmoji:
-    name: str
-    unicode: str
+    __slots__ = ('name', 'unicode')
+
+    def __init__(self, name: str, unicode: str) -> None:
+        self.name: str = name
+        self.unicode: str = unicode

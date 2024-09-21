@@ -49,6 +49,8 @@ class Emoji(commands.GroupCog):
         async with ctx.typing(ephemeral=True):
             await asyncio.gather(*coros)
 
+        del coros
+
         emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
         emojis = discord.utils.as_chunks(emojis, 12)
         async for i, item in iter_pagination(PaginationContextView(emojis), context=ctx):
@@ -73,6 +75,8 @@ class Emoji(commands.GroupCog):
         async with ctx.typing(ephemeral=True):
             await asyncio.gather(*coros)
 
+        # task eats mem until view dies.
+        del coros
         items = [emoji for emoji in ctx.bot.emojis_users.values()]
         items.sort(key=lambda emoji: emoji.usages[ctx.author.id], reverse=True)
         emojis = discord.utils.as_chunks(items, 12)

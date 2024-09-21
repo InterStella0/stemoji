@@ -27,7 +27,10 @@ class StellaEmojiBot(commands.Bot):
         if env("TEXT_COMMAND_PREFIX_MENTION"):
             cmd_prefix = commands.when_mentioned_or(cmd_prefix)
 
-        super().__init__(cmd_prefix, intents=intents, strip_after_prefix=True, help_command=starlight.MenuHelpCommand())
+        super().__init__(
+            cmd_prefix, intents=intents, strip_after_prefix=True, help_command=starlight.MenuHelpCommand(),
+            max_messages=None, chunk_guilds_at_startup=False, member_cache_flags=discord.MemberCacheFlags.none()
+        )
         self.emojis_users: dict[int, PersonalEmoji] = {}
         self.emoji_names: dict[str, int] = {}
         self.emoji_filled: asyncio.Event = asyncio.Event()
@@ -88,7 +91,7 @@ class StellaEmojiBot(commands.Bot):
         await self.db.init_database()
         await self.sync_emojis()
         self.emoji_filled.set()
-        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
+        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling', 'jishaku']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
             cogs.append('cogs.mirroring')
 
@@ -177,12 +180,12 @@ class NormalDiscordEmoji:
         last_data = await db.fetch_latest_normal_emoji()
         is_new = False
         if last_data:
-            created_at = last_data['fetched_at']
+            created_at = last_data.fetched_at
             if created_at > discord.utils.utcnow() + datetime.timedelta(days=5):
                 actual_data = await self.fetch()
                 is_new = True
             else:
-                actual_data = json.loads(last_data['json_data'])
+                actual_data = json.loads(last_data.json_data)
         else:
             actual_data = await self.fetch()
             is_new = True

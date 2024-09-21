@@ -1,12 +1,17 @@
+import tracemalloc
+
 import discord
+import starlight
 from discord import app_commands
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
 from core.converter import PersonalEmojiModel
 from core.typings import EContext
+from core.ui_components import PaginationContextView
 from utils.parsers import env
 
+tracemalloc.start()
 bot = StellaEmojiBot()
 
 @bot.hybrid_command()
@@ -23,6 +28,17 @@ async def sync(ctx: EContext, guild: discord.Guild | None = None):
     """Run this command to register your slash commands on discord."""
     synced = await bot.tree.sync(guild=guild)
     await ctx.send(f"Synced {len(synced)} commands.")
+
+
+@bot.command()
+async def profiler(ctx: EContext):
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    chunks = discord.utils.as_chunks(top_stats, 10)
+    async for item in starlight.inline_pagination(PaginationContextView(chunks), ctx):
+        desc = "\n".join(map(str, item.data))
+        item.format(content=f"```\n{desc}\n```")
+
 
 token = env("BOT_TOKEN")
 if not token:
