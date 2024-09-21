@@ -93,14 +93,14 @@ class PersonalEmoji:
             return self.db_data
 
         if user is None:
-            data = await self.bot.pool.fetchrow("SELECT * FROM emoji WHERE id=$1", self.id)
+            data = await self.bot.db.fetch_emoji(self.id)
             if data is not None:
                 img_hash = data['hash']
                 if img_hash != '':
                     self.generate_from_hash(img_hash)
                 else:
                     hashs = await self.create_image_hash()
-                    await self.bot.pool.execute("UPDATE emoji SET hash=$2 WHERE id=$1", self.id, str(hashs))
+                    await self.bot.db.update_emoji_hash(self.id, str(hashs))
                 self.db_data = data
                 self.added_by = discord.Object(data['added_by'])
                 return self.db_data
@@ -110,11 +110,7 @@ class PersonalEmoji:
         await self.bot.ensure_user(added_by)
         self.added_by = user or added_by
         img_hash = await self.create_image_hash()
-        self.db_data = await self.bot.pool.fetchrow(
-            "INSERT INTO emoji(id, fullname, added_by, hash) VALUES($1, $2, $3, $4) ON CONFLICT(id) "
-            "DO NOTHING RETURNING *",
-            self.id, self.name, added, str(img_hash)
-        )
+        self.db_data = await self.bot.db.create_emoji(self.id, self.name, added, str(img_hash))
         return self.db_data
 
     def used(self, user: discord.User | discord.Member, value: int = 1) -> None:
@@ -124,12 +120,9 @@ class PersonalEmoji:
             self.update_tasks[user.id] = asyncio.create_task(self._delayed_used(user.id))
 
     async def user_usage(self, user: discord.User | discord.Member | discord.Object):
-        record = await self.bot.pool.fetchrow(
-            "SELECT * FROM emoji_used WHERE emoji_id=$1 AND user_id=$2",self.id, user.id
-        )
-        amount = record['amount'] if record is not None else 0
-        self.usages[user.id] = amount
-        return amount
+        record = await self.bot.db.upsert_emoji_usage(self.id, user.id, 0)
+        self.usages[user.id] = record.amount
+        return record.amount
 
     async def _delayed_used(self, user_id: int):
         await asyncio.sleep(5)
@@ -141,17 +134,8 @@ class PersonalEmoji:
 
         await self.ensure()
         await self.bot.ensure_user(discord.Object(user_id))
-        emoji_used = await self.bot.pool.fetchrow(
-            """
-            INSERT INTO emoji_used (emoji_id, user_id, amount)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (emoji_id, user_id)
-            DO UPDATE SET amount = emoji_used.amount + $3
-            RETURNING *
-            """,
-            self.id, user_id, value
-        )
-        self.usages[user_id] = emoji_used['amount']
+        emoji_used = await self.bot.db.upsert_emoji_usage(self.id, user_id, value)
+        self.usages[user_id] = emoji_used.amount
 
     async def rename(self, name: str) -> None:
         new_name = name.strip()

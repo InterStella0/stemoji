@@ -162,3 +162,5 @@ cython_debug/
 
 #  github, we do not care
 .idea/
+
+emoji_bot.*

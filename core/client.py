@@ -10,6 +10,7 @@ import discord
 import starlight
 from discord.ext import commands
 
+from core.db import DbPostgres, DbSqlite
 from core.errors import EmojiImageDuplicates
 from core.models import PersonalEmoji, NormalEmoji
 from core.typings import EContext
@@ -32,7 +33,14 @@ class StellaEmojiBot(commands.Bot):
         self.emoji_filled: asyncio.Event = asyncio.Event()
         self.primary_color: int = 0xffcccb
         self.normal_emojis: NormalDiscordEmoji = NormalDiscordEmoji(self)
-        self.pool: asyncpg.Pool | None = None
+        conn_string = env("DATABASE_DSN")
+        if env('DATABASE') == 'postgres':
+            self.db: DbPostgres = DbPostgres(conn_string)
+        elif env("DATABASE") == 'sqlite':
+            self.db: DbSqlite = DbSqlite(conn_string)
+        else:
+            raise RuntimeError("DATABASE environment variable is not valid.")
+
         self.check_once(self.called_everywhere)
         self.__get_user_lock: asyncio.Lock = asyncio.Lock()
 
@@ -59,9 +67,7 @@ class StellaEmojiBot(commands.Bot):
         if (d := __user_inserted.get(user.id, discord.utils.MISSING)) is not discord.utils.MISSING:
             return d
 
-        data = await self.pool.fetchrow(
-            "INSERT INTO discord_user(id) VALUES($1) ON CONFLICT(id) DO NOTHING RETURNING *", user.id
-        )
+        data = await self.db.create_user(user.id)
         __user_inserted[user.id] = data
         return data
 
@@ -70,15 +76,16 @@ class StellaEmojiBot(commands.Bot):
         self.emoji_names = {emoji.name: emoji.id for emoji in self.emojis_users.values()}
         await self.normal_emojis.fill()
         await asyncio.gather(*[emoji.ensure() for emoji in self.emojis_users.values()])
-        emojis_records = await self.pool.fetch("SELECT * FROM emoji")
+        emojis_records = await self.db.fetch_emojis()
         to_delete = []
         for emoji in emojis_records:
-            if emoji['id'] not in self.emojis_users:
-                to_delete.append(emoji['id'])
+            if emoji.id not in self.emojis_users:
+                to_delete.append(emoji.id)
 
-        await self.pool.executemany("DELETE FROM emoji WHERE id=$1", to_delete)
+        await self.db.bulk_remove_emojis(to_delete)
 
     async def setup_hook(self):
+        await self.db.init_database()
         await self.sync_emojis()
         self.emoji_filled.set()
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
@@ -90,8 +97,7 @@ class StellaEmojiBot(commands.Bot):
 
     async def _starter(self, token: str):
         discord.utils.setup_logging()
-        conn_string = env("DATABASE_DSN")
-        async with self, asyncpg.create_pool(conn_string) as self.pool:
+        async with self, self.db:
             await self.start(token)
 
         if self.normal_emojis.http:
@@ -167,8 +173,8 @@ class NormalDiscordEmoji:
         return [*self.mapping.values()]
 
     async def fill(self) -> None:
-        pool = self.bot.pool
-        last_data = await pool.fetchrow("SELECT * FROM discord_normal_emojis ORDER BY fetched_at DESC LIMIT 1")
+        db = self.bot.db
+        last_data = await db.fetch_latest_normal_emoji()
         is_new = False
         if last_data:
             created_at = last_data['fetched_at']
@@ -182,9 +188,7 @@ class NormalDiscordEmoji:
             is_new = True
 
         if is_new:
-            await pool.execute(
-                "INSERT INTO discord_normal_emojis(json_data) VALUES($1)", json.dumps(actual_data)
-            )
+            await db.create_normal_emojis(actual_data)
 
         self.mapping = {name: NormalEmoji(name=name, unicode=unicode) for name, unicode in actual_data.items()}
 
