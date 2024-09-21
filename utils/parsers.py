@@ -1,10 +1,9 @@
 import os
 import re
 import typing
-from typing import Any, TYPE_CHECKING
 
 from starlight.utils.search import FuzzyFilter
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 load_dotenv()
 

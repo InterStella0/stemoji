@@ -36,7 +36,7 @@ class FileLock:
 class MirrorCog(commands.Cog):
     def __init__(self, bot: StellaEmojiBot):
         self.bot = bot
-        self.bot_suffixes = "bot"
+        self.bot_suffixes = env("BOT_NAME_SUFFIX")
         self.client_user: ClientUser | None = None
         self.original_client_user: ClientUser | None = None
         self.file_lock = FileLock()
