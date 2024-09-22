@@ -33,6 +33,7 @@ class PersonalEmoji:
         self.db_data: asyncpg.Record | None = None
         self._recent_emoji_usage: dict[int, int] = defaultdict(int)
         self.usages: dict[int, int] = defaultdict(int)
+        self.favourites: set[int] = set()
         self.update_tasks: dict[int, asyncio.Task] = {}
         self.lock: asyncio.Lock = asyncio.Lock()
         self.image_hash: imagehash.ImageHash | None = None
@@ -151,9 +152,17 @@ class PersonalEmoji:
 
         self.emoji = await self.emoji.edit(name=new_name)
 
-    async def delete(self, bot: StellaEmojiBot) -> None:
+    async def delete(self) -> None:
         await self.emoji.delete(reason="Remove requested by user.")
-        del bot.emojis_users[self.emoji.id]
+        del self.bot.emojis_users[self.emoji.id]
+
+    async def favourite(self, user: discord.Object) -> None:
+        await self.bot.db.create_emoji_favourite(self.id, user.id)
+        self.favourites.add(user.id)
+
+    async def unfavourite(self, user: discord.Object) -> None:
+        await self.bot.db.remove_emoji_favourite(self.id, user.id)
+        self.favourites.remove(user.id)
 
     @classmethod
     def find_all_emojis(cls, bot: StellaEmojiBot, content: str) -> Generator[Self, None, None]:

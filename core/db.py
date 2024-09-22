@@ -148,6 +148,20 @@ class DbPostgres(DbManager[asyncpg.Pool]):
     async def bulk_remove_emojis(self, emoji_ids: list[int]):
         await self.pool.executemany("DELETE FROM emoji WHERE id=$1", emoji_ids)
 
+    async def create_emoji_favourite(self, emoji_id: int, user_id: int) -> None:
+        await self.pool.execute(
+            "INSERT INTO emoji_favourite(emoji_id, user_id) VALUES($1, $2)", emoji_id, user_id
+        )
+
+    async def remove_emoji_favourite(self, emoji_id: int, user_id: int) -> None:
+        await self.pool.execute(
+            "DELETE FROM emoji_favourite WHERE user_id=$1 AND emoji_id=$2", user_id, emoji_id
+        )
+
+    async def list_emoji_favourite(self, user_id: int) -> list[EmojiFavouriteDb]:
+        records = await self.pool.fetch("SELECT * FROM emoji_favourite WHERE user_id=$1", user_id)
+        return [self.wrap_or_none(record, cls=EmojiFavouriteDb) for record in records]
+
 
 SQLITE_RECORD = DbRecord[dict[str, typing.Any]]
 class DbSqlite(DbManager[asqlite.Pool]):
@@ -229,6 +243,21 @@ class DbSqlite(DbManager[asqlite.Pool]):
         async with self.pool.acquire() as conn:
             await conn.execute("INSERT INTO discord_normal_emojis(json_data) VALUES(?)", json.dumps(data))
 
+    async def create_emoji_favourite(self, emoji_id: int, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("INSERT INTO emoji_favourite(emoji_id, user_id) VALUES(?, ?)", (emoji_id, user_id))
+
+    async def remove_emoji_favourite(self, emoji_id: int, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM emoji_favourite WHERE user_id=? AND emoji_id=?", (user_id, emoji_id))
+
+    async def list_emoji_favourite(self, user_id: int) -> list[EmojiFavouriteDb]:
+        async with self.pool.acquire() as conn:
+            stmt = self.stmt_star("SELECT * FROM emoji_favourite WHERE user_id=?", EmojiFavouriteDb.__slots__)
+            records = await conn.fetchall(stmt, (user_id,))
+
+        return [self.wrap_key_or_none(record, EmojiFavouriteDb.__slots__, cls=EmojiFavouriteDb) for record in records]
+
     async def upsert_emoji_usage(self, emoji_id: int, user_id: int, amount: int) -> SQLITE_RECORD:
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -273,6 +302,14 @@ class EmojiUsageDb(typing.Generic[T]):
         self.amount: int = data.amount
         self.first_used: datetime.datetime = data.first_used
 
+
+class EmojiFavouriteDb(typing.Generic[T]):
+    __slots__ = ('emoji_id', 'user_id', 'made_at')
+
+    def __init__(self, data: DbRecord[T]):
+        self.emoji_id: int = data.emoji_id
+        self.user_id: int = data.user_id
+        self.made_at: datetime.datetime = data.made_at
 
 class UserDb(typing.Generic[T]):
     __slots__ = ('id', 'started_at')

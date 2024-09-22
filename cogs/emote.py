@@ -153,6 +153,45 @@ class Emoji(commands.GroupCog):
             await emoji.delete()
             await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
+    @commands.hybrid_group(name='favourite', fallback='list')
+    async def fav(self, ctx: EContext):
+        author = ctx.author
+        async with ctx.typing(ephemeral=True), TaskGroup() as group:
+            records = await ctx.bot.db.list_emoji_favourite(author.id)
+            p_emojis = [ctx.bot.emojis_users[record.emoji_id] for record in records]
+            for emoji in p_emojis:
+                group.create_task(emoji.user_usage(author))
+
+        p_emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
+
+        if not records:
+            raise UserInputError("No favourite emoji found!")
+
+        size_list = len(p_emojis)
+        PER_PAGE = 5
+        async for page in inline_pages(p_emojis, ctx, PER_PAGE, cache_page=True):
+            data = page.item.data
+            offset = page.view.current_page * PER_PAGE
+            list_emojis = "\n".join([
+                f'{i}. {emote} {emote.name}[{emote.usages[author.id]}]'
+                for i, emote in enumerate(data, start=offset)
+            ])
+            embed = page.embed
+            embed.title = f"List of favourite emojis [`{size_list}`]"
+            embed.description = list_emojis
+
+    @fav.command('add')
+    async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):
+        async with ctx.typing(ephemeral=True):
+            await emoji.favourite(ctx.author)
+        await ctx.send(f"Favourited {emoji}")
+
+    @fav.command('remove')
+    async def fav_remove(self, ctx: EContext, emoji: PersonalEmojiModel):
+        async with ctx.typing(ephemeral=True):
+            await emoji.unfavourite(ctx.author)
+        await ctx.send(f"Unfavourited {emoji}")
+
     @commands.hybrid_command()
     async def rename(self, ctx: EContext, emoji: PrivateEmojiModel, new_name: str | None = None):
         """Rename emoji that you own."""
