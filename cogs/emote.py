@@ -63,10 +63,6 @@ class Emoji(commands.GroupCog):
                           f"**Added By:**{await emoji.resolve_owner()}\n"
                           f"**Created At:**{discord.utils.format_dt(emoji.created_at, 'd')}"
                 )
-            # if page.iteration == 0:
-            #     page.item.format(embed=embed, ephemeral=True)
-            # else:
-            #     page.item.format(embed=embed)
 
     @commands.hybrid_command(name="list")
     async def _list(self, ctx: EContext):
