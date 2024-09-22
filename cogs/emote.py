@@ -56,7 +56,6 @@ class Emoji(commands.GroupCog):
             embed.title = "View of emojis"
             embed.colour = ctx.bot.primary_color
             for emoji in page.item.data:
-                emoji: PersonalEmoji
                 embed.add_field(
                     name=f"{emoji} {emoji.name}",
                     value=f"**Used:** {emoji.usages[author.id]}\n"

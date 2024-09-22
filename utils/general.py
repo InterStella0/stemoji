@@ -14,10 +14,12 @@ if typing.TYPE_CHECKING:
 
 emoji_context = contextvars.ContextVar("emoji_user_used")
 
-class PageItem:
+T = typing.TypeVar('T')
+class PageItem(typing.Generic[T]):
     __slots__ = ('view', 'iteration', 'item', 'embed')
 
-    def __init__(self, view: PaginationContextView, iteration: int, item: starlight.InlinePaginationItem, embed: discord.Embed) -> None:
+    def __init__(self, view: PaginationContextView, iteration: int, item: starlight.InlinePaginationItem[
+        typing.Sequence[T]], embed: discord.Embed) -> None:
         self.view = view
         self.iteration = iteration
         self.item = item
@@ -30,11 +32,10 @@ async def iter_pagination(
     async for item in starlight.inline_pagination(pagination_view, context):
         yield next(counter), item
 
-T = typing.TypeVar('T')
 async def inline_pages(
         items: list[T], ctx: EContext, per_page: int = 6, cls: type[PaginationContextView] = None,
         **kwargs
-) -> AsyncGenerator[PageItem, None]:
+) -> AsyncGenerator[PageItem[T], None]:
     chunks = [*discord.utils.as_chunks(items, per_page)]
     page_size = len(chunks)
     if cls is None:
