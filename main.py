@@ -1,14 +1,13 @@
 import tracemalloc
 
 import discord
-import starlight
 from discord import app_commands
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
 from core.converter import PersonalEmojiModel
 from core.typings import EContext
-from core.ui_components import PaginationContextView
+from utils.general import inline_pages
 from utils.parsers import env
 
 tracemalloc.start()
@@ -31,13 +30,13 @@ async def sync(ctx: EContext, guild: discord.Guild | None = None):
 
 
 @bot.command()
+@commands.is_owner()
 async def profiler(ctx: EContext):
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
-    chunks = discord.utils.as_chunks(top_stats, 10)
-    async for item in starlight.inline_pagination(PaginationContextView(chunks), ctx):
-        desc = "\n".join(map(str, item.data))
-        item.format(content=f"```\n{desc}\n```")
+    async for page in inline_pages(top_stats, ctx):
+        desc = "\n".join(map(str, page.item.data))
+        page.embed.description = f"```\n{desc}\n```"
 
 
 token = env("BOT_TOKEN")

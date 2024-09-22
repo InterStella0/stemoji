@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import TaskGroup
 
 import discord
 import starlight
@@ -13,7 +14,7 @@ from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
     ContextViewAuthor, PaginationContextView, saving_emoji_interaction
-from utils.general import iter_pagination
+from utils.general import iter_pagination, inline_pages
 from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find_latest_unpaired_emoji, \
     VALID_EMOJI_NORMAL, FuzzyInsensitive
 
@@ -45,17 +46,16 @@ class Emoji(commands.GroupCog):
 
         author = ctx.author
         emojis = [*ctx.bot.emojis_users.values()]
-        coros = [asyncio.create_task(emoji.user_usage(author)) for emoji in emojis]
-        async with ctx.typing(ephemeral=True):
-            await asyncio.gather(*coros)
-
-        del coros
+        async with ctx.typing(ephemeral=True), TaskGroup() as group:
+            for emoji in emojis:
+                group.create_task(emoji.user_usage(author))
 
         emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
-        emojis = discord.utils.as_chunks(emojis, 12)
-        async for i, item in iter_pagination(PaginationContextView(emojis), context=ctx):
-            embed = discord.Embed(title="View of emojis", color=ctx.bot.primary_color)
-            for emoji in item.data:
+        async for page in inline_pages(emojis, ctx, per_page=6, cls=PaginationContextView):
+            embed = page.embed
+            embed.title = "View of emojis"
+            embed.colour = ctx.bot.primary_color
+            for emoji in page.item.data:
                 emoji: PersonalEmoji
                 embed.add_field(
                     name=f"{emoji} {emoji.name}",
@@ -63,31 +63,27 @@ class Emoji(commands.GroupCog):
                           f"**Added By:**{await emoji.resolve_owner()}\n"
                           f"**Created At:**{discord.utils.format_dt(emoji.created_at, 'd')}"
                 )
-            if i == 0:
-                item.format(embed=embed, ephemeral=True)
-            else:
-                item.format(embed=embed)
+            # if page.iteration == 0:
+            #     page.item.format(embed=embed, ephemeral=True)
+            # else:
+            #     page.item.format(embed=embed)
 
     @commands.hybrid_command(name="list")
     async def _list(self, ctx: EContext):
         """Briefly list all the emojis you've used."""
-        coros = [asyncio.create_task(emoji.user_usage(ctx.author)) for emoji in ctx.bot.emojis_users.values()]
-        async with ctx.typing(ephemeral=True):
-            await asyncio.gather(*coros)
+        async with ctx.typing(ephemeral=True), TaskGroup() as group:
+            for emoji in ctx.bot.emojis_users.values():
+                group.create_task(emoji.user_usage(ctx.author))
 
-        # task eats mem until view dies.
-        del coros
         items = [emoji for emoji in ctx.bot.emojis_users.values()]
         items.sort(key=lambda emoji: emoji.usages[ctx.author.id], reverse=True)
-        emojis = discord.utils.as_chunks(items, 12)
-        async for i, item in iter_pagination(PaginationContextView(emojis), context=ctx):
-            list_emojis = '\n'.join([f'{emoji}: {emoji.name} [`{emoji.usages[ctx.author.id]}`]' for emoji in item.data])
-            eph = {'ephemeral': True} if i == 0 else {}
-            item.format(embed=discord.Embed(
-                title="List of emojis",
-                color=ctx.bot.primary_color,
-                description=list_emojis
-            ), **eph)
+        async for page in inline_pages(items, ctx, per_page=12):
+            list_emojis = '\n'.join([f'{emoji}: {emoji.name} [`{emoji.usages[ctx.author.id]}`]'
+                                     for emoji in page.item.data])
+            embed = page.embed
+            embed.title = "List of emojis"
+            embed.colour = ctx.bot.primary_color
+            embed.description = list_emojis
 
     @commands.hybrid_command(name="text")
     async def _text(self, ctx: EContext, text: str | None = None) -> None:
@@ -105,15 +101,17 @@ class Emoji(commands.GroupCog):
             return
 
         def process_emoji(match):
-            emoji_name = match.group('emoji_name')
-            if (emoji := ctx.bot.get_custom_emoji(emoji_name)) is not None:
+            if (emoji := ctx.bot.get_custom_emoji(match.group('emoji_name'))) is not None:
                 return f'{emoji:u}'
-            elif (emoji := ctx.bot.normal_emojis.get(emoji_name)) is not None:
+            return match.group(0)
+
+        def process_norm_emoji(match):
+            if (emoji := ctx.bot.normal_emojis.get(match.group('emoji_name'))) is not None:
                 return emoji.unicode
             return match.group(0)
 
         text = VALID_EMOJI_SEMI.sub(process_emoji, text)
-        text = VALID_EMOJI_NORMAL.sub(process_emoji, text)
+        text = VALID_EMOJI_NORMAL.sub(process_norm_emoji, text)
         await ctx.send(text)
 
     @_text.autocomplete('text')
@@ -152,7 +150,7 @@ class Emoji(commands.GroupCog):
     async def delete(self, ctx: EContext, emoji: PrivateEmojiModel):
         """Delete emoji that you own."""
         async with ctx.typing(ephemeral=True):
-            await emoji.delete(ctx.bot)
+            await emoji.delete()
             await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
     @commands.hybrid_command()
@@ -189,9 +187,9 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
     if not emojis:
         raise UserInputError("No custom emoji found!")
     elif len(emojis) > 1:
-        view = EmojiDownloadView(emojis)
         emoji_dups = {emoji.id: asyncio.create_task(bot.find_image_duplicates(emoji)) for emoji in emojis}
-        async for i, item in iter_pagination(view, context=ctx):
+        async for page in inline_pages(emojis, ctx, cls=EmojiDownloadView, per_page=1):
+            item = page.item
             emoji: PersonalEmoji = item.data
             file = await emoji.to_file(filename=f"{emoji.name}_emoji.png")
             dups = await emoji_dups[emoji.id]
@@ -199,9 +197,9 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
             if dups:
                 found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
                 embed.description = f"Possible duplicates:\n{found_dups}"
-
+            view = page.view
             view.button_save.disabled = emoji.id in view.emoji_downloaded
-            if i == 0:
+            if page.iteration == 0:
                 item.format(embed=embed, file=file)
             else:
                 item.format(embed=embed, attachments=[file])
