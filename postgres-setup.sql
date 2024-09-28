@@ -8,28 +8,28 @@ CREATE TABLE IF NOT EXISTS emoji(
     id BIGINT PRIMARY KEY,
     fullname VARCHAR(40) NOT NULL,
     hash TEXT NOT NULL,
-    added_by BIGINT NOT NULL REFERENCES discord_user(id)
+    added_by BIGINT NOT NULL REFERENCES discord_user(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS emoji_used(
-     emoji_id BIGINT REFERENCES emoji(id) NOT NULL,
-     user_id BIGINT REFERENCES discord_user(id) NOT NULL,
+     emoji_id BIGINT NOT NULL REFERENCES emoji(id) ON DELETE CASCADE,
+     user_id BIGINT NOT NULL REFERENCES discord_user(id) ON DELETE CASCADE,
      amount INT DEFAULT 0,
      first_used TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
      CONSTRAINT emoji_user UNIQUE (emoji_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS emoji_reacted(
-     emoji_id BIGINT REFERENCES emoji(id) NOT NULL,
-     user_id BIGINT REFERENCES discord_user(id) NOT NULL,
+     emoji_id BIGINT NOT NULL REFERENCES emoji(id) ON DELETE CASCADE,
+     user_id BIGINT NOT NULL REFERENCES discord_user(id) ON DELETE CASCADE,
      message_id INT NOT NULL,
      made_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
      CONSTRAINT emoji_user_message UNIQUE (emoji_id, user_id, message_id)
 );
 
 CREATE TABLE IF NOT EXISTS emoji_favourite(
-     emoji_id BIGINT REFERENCES emoji(id) NOT NULL,
-     user_id BIGINT REFERENCES discord_user(id) NOT NULL,
+     emoji_id BIGINT NOT NULL REFERENCES emoji(id) ON DELETE CASCADE,
+     user_id BIGINT NOT NULL REFERENCES discord_user(id) ON DELETE CASCADE,
      made_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
      CONSTRAINT emoji_user_fav UNIQUE (emoji_id, user_id)
 );

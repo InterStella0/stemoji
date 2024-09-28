@@ -142,7 +142,7 @@ class Emoji(commands.GroupCog):
     async def delete(self, ctx: EContext, emoji: PrivateEmojiModel):
         """Delete emoji that you own."""
         async with ctx.typing(ephemeral=True):
-            await emoji.delete()
+            await emoji.delete(ctx.author)
         await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
     @commands.hybrid_command()

@@ -150,7 +150,7 @@ class DbPostgres(DbManager[asyncpg.Pool]):
         await self.pool.execute("UPDATE emoji SET hash=$2 WHERE id=$1", emoji_id, image_hash)
 
     async def bulk_remove_emojis(self, emoji_ids: list[int]):
-        await self.pool.executemany("DELETE FROM emoji WHERE id=$1", emoji_ids)
+        await self.pool.executemany("DELETE FROM emoji WHERE id=$1", [[x] for x in emoji_ids])
 
     async def create_emoji_favourite(self, emoji_id: int, user_id: int) -> None:
         await self.pool.execute(
@@ -174,11 +174,12 @@ class DbSqlite(DbManager[asqlite.Pool]):
     def stmt_star(self, stmt: str, keys: list[str]) -> str:
         return stmt.replace('*', ','.join([key if isinstance(key, str) else key[0] for key in keys]))
 
-    def wrap_key_or_none(self, data: SQLITE_RECORD | None, keys: list[str | tuple[str, typing.Callable]], cls: type[C] | None = None) -> C | None:
+    def wrap_key_or_none(self, data: SQLITE_RECORD | None, keys: list[str | tuple[str, typing.Callable]],
+                         cls: type[C] | None = None) -> C | None:
         if data is not None:
             return super().wrap_or_none(dict(
-                (key[0], key[1](data)) if isinstance(key, tuple) else (key, data)
-                for key, data in zip(keys, data)
+                (key[0], key[1](d)) if isinstance(key, tuple) else (key, d)
+                for key, d in zip(keys, data)
             ), cls=cls)
 
     async def create_pool(self) -> asqlite.Pool:
@@ -196,7 +197,7 @@ class DbSqlite(DbManager[asqlite.Pool]):
         keys = EmojiUsageDb.__slots__
         async with self.pool.acquire() as conn:
             stmt = self.stmt_star("SELECT * FROM emoji_used WHERE user_id=?", keys)
-            records = conn.fetchall(stmt, (user_id, ))
+            records = await conn.fetchall(stmt, (user_id, ))
 
         return [self.wrap_key_or_none(record, keys, cls=EmojiUsageDb) for record in records]
 
@@ -244,7 +245,7 @@ class DbSqlite(DbManager[asqlite.Pool]):
             "INSERT INTO emoji(id, fullname, added_by, hash) VALUES(?, ?, ?, ?) ON CONFLICT(id) "
             "DO NOTHING"
         )
-        keys = EmojiCustomDb.__slots__,
+        keys = EmojiCustomDb.__slots__
         async with self.pool.acquire() as conn:
             await conn.execute(stmt, (emoji_id, fullname, added_by, image_hash))
             get_stmt = self.stmt_star("SELECT * FROM emoji WHERE id=?", keys)

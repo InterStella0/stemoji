@@ -111,12 +111,14 @@ class StellaEmojiBot(commands.Bot):
             if emoji.id not in self.emojis_users:
                 to_delete.append(emoji.id)
 
-        await self.db.bulk_remove_emojis(to_delete)
+        if to_delete:
+            await self.db.bulk_remove_emojis(to_delete)
+
+        self.emoji_filled.set()
 
     async def setup_hook(self):
         await self.db.init_database()
-        await self.sync_emojis()
-        self.emoji_filled.set()
+        asyncio.create_task(self.sync_emojis())
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling', 'jishaku']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
             cogs.append('cogs.mirroring')

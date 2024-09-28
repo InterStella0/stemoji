@@ -155,8 +155,9 @@ class PersonalEmoji:
 
         self.emoji = await self.emoji.edit(name=new_name)
 
-    async def delete(self) -> None:
-        await self.emoji.delete(reason="Remove requested by user.")
+    async def delete(self, user: discord.Member | discord.User) -> None:
+        await self.emoji.delete(reason=f"Remove requested by {user}.")
+        await self.bot.db.bulk_remove_emojis([self.emoji.id])
         del self.bot.emojis_users[self.emoji.id]
 
     async def favourite(self, user: discord.Object) -> None:
