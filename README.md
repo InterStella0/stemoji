@@ -33,7 +33,7 @@ pip install -r requirements.txt
 The full environment variable description are written on [Environment variable](#environment-variable) section.
 
 ### Run the bot!
-```python
+```commandline
 python main.py
 ```
 
@@ -43,6 +43,11 @@ python main.py
 3. Click Try It Now
 4. Restart your discord client
 
+### Done!
+Your bot should be fully configured! Any errors must be solve yourself or you can
+open an issue if you believe it's a bug.
+
+## Nerdge Section
 ### Environment variable
 The description for each environment variable are described below.
 
