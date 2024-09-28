@@ -2,10 +2,10 @@ import asyncio
 import datetime
 import functools
 import json
+import logging
 import re
 
 import aiohttp
-import asyncpg
 import discord
 import starlight
 from discord.ext import commands
@@ -16,6 +16,8 @@ from core.models import PersonalEmoji, NormalEmoji
 from core.typings import EContext
 from utils.general import emoji_context
 from utils.parsers import env
+
+VERSION = "0.0.1"
 
 
 class StellaEmojiBot(commands.Bot):
@@ -48,6 +50,8 @@ class StellaEmojiBot(commands.Bot):
         self.__get_user_lock: asyncio.Lock = asyncio.Lock()
         self._fetched_user_usage: set[int] = set()
         self._fetched_fav_usage: set[int] = set()
+        self._extension_loaded: asyncio.Event = asyncio.Event()
+        self.log = logging.getLogger("stemoji")
 
     def passive_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
         if user.id in self._fetched_user_usage:
@@ -126,6 +130,7 @@ class StellaEmojiBot(commands.Bot):
 
     async def setup_hook(self):
         await self.db.init_database()
+        await self.bot_metadata()
         asyncio.create_task(self.sync_emojis())
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling', 'jishaku']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
@@ -133,6 +138,32 @@ class StellaEmojiBot(commands.Bot):
 
         for cog in cogs:
             await self.load_extension(cog)
+
+        self._extension_loaded.set()
+
+    async def bot_metadata(self):
+        self.log.info(f"Bot's version {VERSION}.")
+        meta = await self.db.fetch_metadata(VERSION)
+        new_meta = meta.data.copy()
+
+        counter = new_meta.get("start_counter") or 0
+        new_meta["start_counter"] = counter + 1
+
+        if new_meta.get("first_time") is None or new_meta.get("first_time") is True:
+            async def t():
+                await self._extension_loaded.wait()
+                await asyncio.sleep(10)
+                slashs = await self.tree.sync()
+                self.log.info(f"Synced {len(slashs)} commands.")
+
+            asyncio.create_task(t())
+            self.log.info(f"Version change detected. Syncing slash command to discord in 10 seconds.")
+            new_meta["first_time"] = False
+        else:
+            info = datetime.datetime.now().astimezone().tzinfo
+            self.log.info(f"Using {VERSION} since {meta.created_at.astimezone(info)}.")
+            self.log.info(f"Bot start counter {new_meta['start_counter']}")
+        await self.db.update_metadata(meta.id, new_meta)
 
     async def _starter(self, token: str):
         discord.utils.setup_logging()

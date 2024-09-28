@@ -26,6 +26,7 @@ class DbRecord(typing.Generic[T]):
 
 C = typing.TypeVar('C')
 
+
 class DbManager(typing.Generic[T]):
     def __init__(self, dsn: str) -> None:
         self.pool: T | None = None
@@ -51,7 +52,8 @@ class DbManager(typing.Generic[T]):
     async def create_user(self, user_id: int) -> DbRecord:
         pass
 
-    async def create_emoji(self, emoji_id: int, fullname: str, added_by: datetime.datetime, image_hash: str) -> EmojiCustomDb:
+    async def create_emoji(self, emoji_id: int, fullname: str, added_by: datetime.datetime,
+                           image_hash: str) -> EmojiCustomDb:
         pass
 
     async def create_normal_emojis(self, data: dict[str, str]):
@@ -122,7 +124,8 @@ class DbPostgres(DbManager[asyncpg.Pool]):
         )
         return self.wrap_or_none(data, cls=UserDb)
 
-    async def create_emoji(self, emoji_id: int, fullname: str, added_by: datetime.datetime, image_hash: str) -> EmojiCustomDb:
+    async def create_emoji(self, emoji_id: int, fullname: str, added_by: datetime.datetime,
+                           image_hash: str) -> EmojiCustomDb:
         data = await self.pool.fetchrow(
             "INSERT INTO emoji(id, fullname, added_by, hash) VALUES($1, $2, $3, $4) ON CONFLICT(id) "
             "DO NOTHING RETURNING *",
@@ -169,10 +172,26 @@ class DbPostgres(DbManager[asyncpg.Pool]):
         records = await self.pool.fetch("SELECT * FROM emoji_favourite WHERE user_id=$1", user_id)
         return [self.wrap_or_none(record, cls=EmojiFavouriteDb) for record in records]
 
+    async def fetch_metadata(self, version: str) -> MetadataDb:
+        record = await self.pool.fetchrow(
+            "INSERT INTO bot_metadata(bot_version, data) VALUES($1, $2) "
+            "ON CONFLICT (bot_version) DO UPDATE SET "
+            "bot_version=EXCLUDED.bot_version RETURNING *", version, "{}")
+        return self.wrap_or_none(record, cls=MetadataDb)
+
+    async def update_metadata(self, id: int, data: dict[str, typing.Any]) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE bot_metadata SET data=$2 WHERE id=$1", id, json.dumps(data))
+
 
 SQLITE_RECORD = DbRecord[dict[str, typing.Any]]
+
+
 class DbSqlite(DbManager[asqlite.Pool]):
     _emoji_keys = ['id', 'fullname', 'added_by', 'hash']
+
+    def _sqlite_datetime(self, data: int) -> datetime.datetime:
+        return datetime.datetime.fromisoformat(data).replace(tzinfo=datetime.timezone.utc)
 
     def stmt_star(self, stmt: str, keys: list[str]) -> str:
         return stmt.replace('*', ','.join([key if isinstance(key, str) else key[0] for key in keys]))
@@ -200,7 +219,7 @@ class DbSqlite(DbManager[asqlite.Pool]):
         keys = EmojiUsageDb.__slots__
         async with self.pool.acquire() as conn:
             stmt = self.stmt_star("SELECT * FROM emoji_used WHERE user_id=?", keys)
-            records = await conn.fetchall(stmt, (user_id, ))
+            records = await conn.fetchall(stmt, (user_id,))
 
         return [self.wrap_key_or_none(record, keys, cls=EmojiUsageDb) for record in records]
 
@@ -217,10 +236,30 @@ class DbSqlite(DbManager[asqlite.Pool]):
 
         return self.wrap_key_or_none(data, EmojiCustomDb.__slots__, cls=EmojiCustomDb)
 
+    async def fetch_metadata(self, version: str) -> MetadataDb:
+        keys = [
+            'id', ('data', lambda data: json.loads(data)),
+            'bot_version',
+            ('created_at', self._sqlite_datetime)
+        ]
+        async with self.pool.acquire() as conn:
+            stmt = (
+                "INSERT INTO bot_metadata(bot_version, data) VALUES(?, ?) "
+                "ON CONFLICT (bot_version) DO NOTHING"
+            )
+            await conn.execute(stmt, version, "{}")
+            stmt = self.stmt_star("SELECT * FROM bot_metadata WHERE bot_version=?", keys)
+            data = await conn.fetchone(stmt, (version,))
+            return self.wrap_key_or_none(data, keys, cls=MetadataDb)
+
+    async def update_metadata(self, id: int, data: dict[str, typing.Any]) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE bot_metadata SET data=? WHERE id=?", (json.dumps(data), id))
+
     async def fetch_latest_normal_emoji(self) -> SQLITE_RECORD | None:
         keys = [
             'id', 'json_data',
-            ('fetched_at', lambda data: datetime.datetime.fromisoformat(data).replace(tzinfo=datetime.timezone.utc))
+            ('fetched_at', self._sqlite_datetime)
         ]
         async with self.pool.acquire() as conn:
             stmt = self.stmt_star(
@@ -340,9 +379,23 @@ class EmojiFavouriteDb(typing.Generic[T]):
         self.user_id: int = data.user_id
         self.made_at: datetime.datetime = data.made_at
 
+
 class UserDb(typing.Generic[T]):
     __slots__ = ('id', 'started_at')
 
     def __init__(self, data: DbRecord[T]):
         self.id: int = data.id
         self.started_at: datetime.datetime = data.started_at
+
+
+class MetadataDb(typing.Generic[T]):
+    __slots__ = ('id', 'data', 'bot_version', 'created_at')
+
+    def __init__(self, data: DbRecord[T]):
+        if not isinstance((dt := data.data["data"]), dict):
+            dt = json.loads(dt)
+
+        self.data: dict[str, typing.Any] = dt
+        self.id: int = data.id
+        self.bot_version: str = data.bot_version
+        self.created_at: datetime.datetime = data.created_at

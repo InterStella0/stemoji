@@ -67,3 +67,6 @@ def env(name: str, data_type: type[T] = str) -> T:
     if value is data_type:
         return value
     return data_type(value)
+
+
+TOKEN_REGEX = re.compile(r'[a-zA-Z0-9_-]{23,28}\.[a-zA-Z0-9_-]{6,7}\.[a-zA-Z0-9_-]{27,}')
