@@ -94,14 +94,11 @@ class StellaEmojiBot(commands.Bot):
         return True
 
     async def ensure_user(
-            self, user: discord.User | discord.Member | discord.Object, __user_inserted={}  # noqa, we're keeping state.
-    ) -> asyncpg.Record:
-        if (d := __user_inserted.get(user.id, discord.utils.MISSING)) is not discord.utils.MISSING:
-            return d
-
-        data = await self.db.create_user(user.id)
-        __user_inserted[user.id] = data
-        return data
+            self, user: discord.User | discord.Member | discord.Object, __user_inserted=set()  # noqa, we're keeping state.
+    ) -> None:
+        if user.id not in __user_inserted:
+            await self.db.create_user(user.id)
+            __user_inserted.add(user.id)
 
     async def sync_emojis(self):
         self.emojis_users = {emoji.id: PersonalEmoji(self, emoji) for emoji in await self.fetch_application_emojis()}
