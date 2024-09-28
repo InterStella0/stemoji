@@ -67,13 +67,13 @@ class StellaEmojiBot(commands.Bot):
         user_id = user.id
         records = await self.db.list_emoji_favourite(user_id)
         for record in records:
-            if emoji := self.emojis_users[record.emoji_id]:
+            if emoji := self.emojis_users.get(record.emoji_id):
                 emoji.favourites.add(user_id)
 
     async def ensure_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> None:
         usages = await self.db.fetch_user_usages(user.id)
         for usage in usages:
-            if emoji := self.emojis_users[usage.emoji_id]:
+            if emoji := self.emojis_users.get(usage.emoji_id):
                 emoji.usages[user.id] = usage.amount
 
     async def get_or_fetch_user(
@@ -101,27 +101,28 @@ class StellaEmojiBot(commands.Bot):
             __user_inserted.add(user.id)
 
     async def sync_emojis(self):
-        self.emojis_users = {emoji.id: PersonalEmoji(self, emoji) for emoji in await self.fetch_application_emojis()}
-        self.emoji_names = {emoji.name: emoji.id for emoji in self.emojis_users.values()}
-        await self.normal_emojis.fill()
-        await asyncio.gather(*[emoji.ensure() for emoji in self.emojis_users.values()])
-        emojis_records = await self.db.fetch_emojis()
-        to_delete = []
-        to_update_names = []
-        for emoji in emojis_records:
-            emoji_id = emoji.id
-            if emoji_id not in self.emojis_users:
-                to_delete.append(emoji_id)
-            elif emoji.fullname != (emoji_name := self.emojis_users[emoji_id].name):
-                to_update_names.append([emoji_id, emoji_name])
+        try:
+            self.emojis_users = {emoji.id: PersonalEmoji(self, emoji) for emoji in await self.fetch_application_emojis()}
+            self.emoji_names = {emoji.name: emoji.id for emoji in self.emojis_users.values()}
+            await self.normal_emojis.fill()
+            await asyncio.gather(*[emoji.ensure() for emoji in self.emojis_users.values()])
+            emojis_records = await self.db.fetch_emojis()
+            to_delete = []
+            to_update_names = []
+            for emoji in emojis_records:
+                emoji_id = emoji.id
+                if emoji_id not in self.emojis_users:
+                    to_delete.append(emoji_id)
+                elif emoji.fullname != (emoji_name := self.emojis_users[emoji_id].name):
+                    to_update_names.append([emoji_id, emoji_name])
 
-        if to_update_names:
-            await self.db.bulk_update_emoji_names(to_update_names)
+            if to_update_names:
+                await self.db.bulk_update_emoji_names(to_update_names)
 
-        if to_delete:
-            await self.db.bulk_remove_emojis(to_delete)
-
-        self.emoji_filled.set()
+            if to_delete:
+                await self.db.bulk_remove_emojis(to_delete)
+        finally:
+            self.emoji_filled.set()
 
     async def setup_hook(self):
         await self.db.init_database()
