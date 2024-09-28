@@ -162,6 +162,9 @@ class DbPostgres(DbManager[asyncpg.Pool]):
             "DELETE FROM emoji_favourite WHERE user_id=$1 AND emoji_id=$2", user_id, emoji_id
         )
 
+    async def bulk_update_emoji_names(self, values: list[tuple[int, str]]):
+        await self.pool.executemany("UPDATE emoji SET fullname=$2 WHERE id=$1", values)
+
     async def list_emoji_favourite(self, user_id: int) -> list[EmojiFavouriteDb]:
         records = await self.pool.fetch("SELECT * FROM emoji_favourite WHERE user_id=$1", user_id)
         return [self.wrap_or_none(record, cls=EmojiFavouriteDb) for record in records]
@@ -291,9 +294,22 @@ class DbSqlite(DbManager[asqlite.Pool]):
         async with self.pool.acquire() as conn:
             await conn.execute("UPDATE emoji SET hash=? WHERE id=?", (image_hash, emoji_id))
 
+    async def bulk_update_emoji_names(self, values: list[tuple[int, str]]) -> None:
+        values = [(x, y) for y, x in values]
+        async with self.pool.acquire() as conn:
+            query = "UPDATE emoji SET fullname=? WHERE id=?"
+            if len(values) == 1:
+                await conn.execute(query, values[0])
+            else:
+                await conn.executemany(query, values)
+
     async def bulk_remove_emojis(self, emoji_ids: list[int]) -> None:
         async with self.pool.acquire() as conn:
-            await conn.executemany("DELETE FROM emoji WHERE id=?", [(x,) for x in emoji_ids])
+            query = "DELETE FROM emoji WHERE id=?"
+            if len(emoji_ids) == 1:
+                await conn.execute(query, *emoji_ids)
+            else:
+                await conn.executemany(query, [(x,) for x in emoji_ids])
 
 
 class EmojiCustomDb(typing.Generic[T]):

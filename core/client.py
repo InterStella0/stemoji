@@ -107,9 +107,16 @@ class StellaEmojiBot(commands.Bot):
         await asyncio.gather(*[emoji.ensure() for emoji in self.emojis_users.values()])
         emojis_records = await self.db.fetch_emojis()
         to_delete = []
+        to_update_names = []
         for emoji in emojis_records:
-            if emoji.id not in self.emojis_users:
-                to_delete.append(emoji.id)
+            emoji_id = emoji.id
+            if emoji_id not in self.emojis_users:
+                to_delete.append(emoji_id)
+            elif emoji.fullname != (emoji_name := self.emojis_users[emoji_id].name):
+                to_update_names.append([emoji_id, emoji_name])
+
+        if to_update_names:
+            await self.db.bulk_update_emoji_names(to_update_names)
 
         if to_delete:
             await self.db.bulk_remove_emojis(to_delete)

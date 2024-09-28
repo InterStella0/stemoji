@@ -154,6 +154,7 @@ class PersonalEmoji:
             raise ValueError("Emoji names must be inbetween 3 to 32 characters.")
 
         self.emoji = await self.emoji.edit(name=new_name)
+        await self.bot.db.bulk_update_emoji_names([(self.id, new_name)])
 
     async def delete(self, user: discord.Member | discord.User) -> None:
         await self.emoji.delete(reason=f"Remove requested by {user}.")
