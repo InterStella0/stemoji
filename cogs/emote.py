@@ -1,5 +1,4 @@
 import asyncio
-from asyncio import TaskGroup
 
 import discord
 import starlight
@@ -8,13 +7,13 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel, PrivateEmojiModel
+from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, SearchEmojiConverter
 from core.errors import UserInputError
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
-    ContextViewAuthor, PaginationContextView, saving_emoji_interaction
-from utils.general import iter_pagination, inline_pages
+    ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination
+from utils.general import inline_pages
 from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find_latest_unpaired_emoji, \
     VALID_EMOJI_NORMAL, FuzzyInsensitive
 
@@ -29,7 +28,7 @@ class Emoji(commands.GroupCog):
             view = SendEmojiView(emoji)
             await view.start(ctx, content=emoji, ephemeral=True)
         else:
-            await ctx.send(emoji)
+            await ctx.send(f"{emoji:u}")
 
         ctx.bot.dispatch('explicit_sent_emoji', ctx.author, emoji)
 
@@ -46,11 +45,10 @@ class Emoji(commands.GroupCog):
 
         author = ctx.author
         emojis = [*ctx.bot.emojis_users.values()]
-        async with ctx.typing(ephemeral=True), TaskGroup() as group:
-            for emoji in emojis:
-                group.create_task(emoji.user_usage(author))
+        async with ctx.typing(ephemeral=True):
+            await ctx.bot.ensure_bulk_user_usage(author)
+            emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
 
-        emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
         async for page in inline_pages(emojis, ctx, per_page=6, cls=PaginationContextView):
             embed = page.embed
             embed.title = "View of emojis"
@@ -66,9 +64,8 @@ class Emoji(commands.GroupCog):
     @commands.hybrid_command(name="list")
     async def _list(self, ctx: EContext):
         """Briefly list all the emojis you've used."""
-        async with ctx.typing(ephemeral=True), TaskGroup() as group:
-            for emoji in ctx.bot.emojis_users.values():
-                group.create_task(emoji.user_usage(ctx.author))
+        async with ctx.typing(ephemeral=True):
+            await ctx.bot.ensure_bulk_user_usage(ctx.author)
 
         items = [emoji for emoji in ctx.bot.emojis_users.values()]
         items.sort(key=lambda emoji: emoji.usages[ctx.author.id], reverse=True)
@@ -146,18 +143,38 @@ class Emoji(commands.GroupCog):
         """Delete emoji that you own."""
         async with ctx.typing(ephemeral=True):
             await emoji.delete()
-            await ctx.send(f"Successful deletion of **{emoji.name}**!")
+        await ctx.send(f"Successful deletion of **{emoji.name}**!")
+
+    @commands.hybrid_command()
+    async def search(self, ctx: EContext, emoji: SearchEmojiConverter):
+        name = getattr(emoji, "name", emoji)
+        async with ctx.typing(ephemeral=True):
+            ranked = starlight.search(ctx.bot.emojis_users.values(), name=FuzzyInsensitive(name), sort=True)
+
+        per_page = 25
+        async for page in inline_pages(ranked, per_page=per_page, ctx=ctx, cls=SelectEmojiPagination):
+            page.view.update_select()
+            page.embed.title = "Emoji Selection"
+            page.embed.description = f"\n".join([
+                f"{i}. {emoji} {emoji.name}"
+                for i, emoji in
+                enumerate(page.item.data, start=page.view.current_page * per_page + 1)
+            ])
+
+    @commands.hybrid_command(name='fav')
+    async def _fav(self, ctx: EContext, emoji: FavouriteEmojiModel):
+        """Exclusively only use your favourite emoji"""
+        await ctx.send(f"{emoji:u}")
 
     @commands.hybrid_group(name='favourite', fallback='list')
     async def fav(self, ctx: EContext):
+        """Briefly list all of your favourite emojis!"""
         author = ctx.author
-        async with ctx.typing(ephemeral=True), TaskGroup() as group:
+        async with ctx.typing(ephemeral=True):
             records = await ctx.bot.db.list_emoji_favourite(author.id)
             p_emojis = [ctx.bot.emojis_users[record.emoji_id] for record in records]
-            for emoji in p_emojis:
-                group.create_task(emoji.user_usage(author))
-
-        p_emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
+            await ctx.bot.ensure_bulk_user_usage(ctx.author)
+            p_emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
 
         if not records:
             raise UserInputError("No favourite emoji found!")
@@ -177,12 +194,14 @@ class Emoji(commands.GroupCog):
 
     @fav.command('add')
     async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):
+        """Add an emoji into your favourite list."""
         async with ctx.typing(ephemeral=True):
             await emoji.favourite(ctx.author)
         await ctx.send(f"Favourited {emoji}")
 
     @fav.command('remove')
-    async def fav_remove(self, ctx: EContext, emoji: PersonalEmojiModel):
+    async def fav_remove(self, ctx: EContext, emoji: FavouriteEmojiModel):
+        """Remove an emoji from your favourite list."""
         async with ctx.typing(ephemeral=True):
             await emoji.unfavourite(ctx.author)
         await ctx.send(f"Unfavourited {emoji}")
@@ -208,6 +227,32 @@ class Emoji(commands.GroupCog):
                 raise UserInputError(str(e)) from None
 
             await ctx.send(f"Sucessfully renamed **{old_name}** to **{new_name}**.", ephemeral=True)
+
+@app_commands.context_menu(name="Reply Emoji")
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def replying_emoji(interaction: EInteraction, message: discord.Message):
+    await interaction.response.send_message("Waiting for an emoji to be sent. do /emoji send <emoji>", ephemeral=True)
+
+    def check(user, _):
+        return user == interaction.user
+
+    try:
+        _, emoji = await interaction.client.wait_for('explicit_sent_emoji', check=check, timeout=180)
+    except asyncio.TimeoutError:
+        await interaction.delete_original_response()
+        return
+    else:
+        if interaction.guild:
+            emote = f"{emoji:u}"
+            try:
+                await message.reply(f"-# {interaction.user} sent\n{emote}")
+            except discord.Forbidden:
+                await interaction.edit_original_response(content=f"Failed to send message.")
+        else:
+            await interaction.followup.send(f"{emoji:u}")
+            await interaction.delete_original_response()
+
 
 @app_commands.context_menu(name="Steal Emoji")
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
@@ -245,8 +290,9 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
 
 async def setup(bot: StellaEmojiBot) -> None:
     bot.tree.add_command(steal_emoji)
+    bot.tree.add_command(replying_emoji)
     await bot.add_cog(Emoji())
 
 async def teardown(bot: StellaEmojiBot) -> None:
     bot.tree.remove_command(steal_emoji)
-
+    bot.tree.remove_command(replying_emoji)

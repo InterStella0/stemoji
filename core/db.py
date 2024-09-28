@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import datetime
 import json
 import sqlite3
@@ -7,7 +8,6 @@ from types import TracebackType
 
 import asqlite
 import asyncpg
-import discord
 
 T = typing.TypeVar('T', asyncpg.Pool, asqlite.Pool, covariant=True)
 TReturn = typing.TypeVar('TReturn', asyncpg.Record, sqlite3.Row, covariant=True)
@@ -98,7 +98,11 @@ class DbPostgres(DbManager[asyncpg.Pool]):
         for stmt in sql_statements:
             await self.pool.execute(stmt)
 
-    async def fetch_emojis(self) -> list[DbRecord]:
+    async def fetch_user_usages(self, user_id: int) -> list[EmojiUsageDb]:
+        records = await self.pool.fetch("SELECT * FROM emoji_used WHERE user_id=$1", user_id)
+        return [EmojiUsageDb(record) for record in map(DbRecord, records)]
+
+    async def fetch_emojis(self) -> list[EmojiCustomDb]:
         emojis_records = await self.pool.fetch("SELECT * FROM emoji")
         return [EmojiCustomDb(record) for record in map(DbRecord, emojis_records)]
 
@@ -187,6 +191,14 @@ class DbSqlite(DbManager[asqlite.Pool]):
 
         async with self.pool.acquire() as conn:
             await conn.executescript(sql)
+
+    async def fetch_user_usages(self, user_id: int) -> list[EmojiUsageDb]:
+        keys = EmojiUsageDb.__slots__
+        async with self.pool.acquire() as conn:
+            stmt = self.stmt_star("SELECT * FROM emoji_used WHERE user_id=?", keys)
+            records = conn.fetchall(stmt, (user_id, ))
+
+        return [self.wrap_key_or_none(record, keys, cls=EmojiUsageDb) for record in records]
 
     async def fetch_emojis(self) -> list[EmojiCustomDb]:
         async with self.pool.acquire() as conn:

@@ -39,6 +39,9 @@ class PersonalEmoji:
         self.image_hash: imagehash.ImageHash | None = None
         self.added_by: discord.User | discord.Member | discord.Object = None
 
+    def to_choice_usage(self, user_id: int) -> Choice:
+        return Choice(name=f"{self.name} [{self.usages[user_id]}]", value=str(self.id))
+
     async def create_image_hash(self) -> imagehash.ImageHash:
         self.image_hash = await self.to_image_hash(self.emoji)
         return self.image_hash
@@ -209,14 +212,37 @@ class PersonalEmoji:
             raise app_commands.AppCommandError(str(e))
 
     @staticmethod
-    async def autocomplete(interaction: EInteraction, current: str, *, owner_only: bool = False) -> list[Choice[str]]:
-        if owner_only and not await interaction.client.is_owner(interaction.user):
-            source = [emoji for emoji in interaction.client.emojis_users.values() if emoji.added_by == interaction.user]
-        else:
-            source = interaction.client.emojis_users.values()
+    async def autocomplete(
+            interaction: EInteraction, current: str, *, owner_only: bool = False, fav_only: bool = False,
+            mirror: bool = False
+    ) -> list[Choice[str]]:
+        bot = interaction.client
+        user_id = interaction.user.id
+        if task := bot.passive_bulk_user_usage(interaction.user):
+            await task
 
-        fuzzy_emojis = starlight.search(source, sort=True, name=FuzzyInsensitive(current))
-        return [Choice(name=e.name, value=str(e.id)) for e in fuzzy_emojis[:25]]
+        if owner_only and not await bot.is_owner(interaction.user):
+            source = [emoji for emoji in bot.emojis_users.values() if emoji.added_by == interaction.user]
+        elif fav_only:
+            if task := bot.passive_bulk_favourite_user(interaction.user):
+                await task
+
+            source = [emoji for emoji in bot.emojis_users.values() if user_id in emoji.favourites]
+        else:
+            source = [*bot.emojis_users.values()]
+
+        text_search = current.strip()
+        if text_search == "":
+            source.sort(key=lambda e: e.usages[user_id], reverse=True)
+            return [e.to_choice_usage(user_id) for e in source[:25]]
+
+        choices = []
+        if mirror:
+            choices.append(Choice(name=text_search, value=text_search))
+
+        fuzzy_emojis = starlight.search(source, sort=True, name=FuzzyInsensitive(text_search))
+        choices.extend([e.to_choice_usage(user_id) for e in fuzzy_emojis])
+        return choices[:25]
 
 
 class NormalEmoji:

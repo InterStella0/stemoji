@@ -46,6 +46,35 @@ class StellaEmojiBot(commands.Bot):
 
         self.check_once(self.called_everywhere)
         self.__get_user_lock: asyncio.Lock = asyncio.Lock()
+        self._fetched_user_usage: set[int] = set()
+        self._fetched_fav_usage: set[int] = set()
+
+    def passive_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
+        if user.id in self._fetched_user_usage:
+            return
+
+        self._fetched_user_usage.add(user.id)
+        return asyncio.create_task(self.ensure_bulk_user_usage(user))
+
+    def passive_bulk_favourite_user(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
+        if user.id in self._fetched_fav_usage:
+            return
+
+        self._fetched_fav_usage.add(user.id)
+        return asyncio.create_task(self.ensure_bulk_favourite_user(user))
+
+    async def ensure_bulk_favourite_user(self, user: discord.User | discord.Member | discord.Object) -> None:
+        user_id = user.id
+        records = await self.db.list_emoji_favourite(user_id)
+        for record in records:
+            if emoji := self.emojis_users[record.emoji_id]:
+                emoji.favourites.add(user_id)
+
+    async def ensure_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> None:
+        usages = await self.db.fetch_user_usages(user.id)
+        for usage in usages:
+            if emoji := self.emojis_users[usage.emoji_id]:
+                emoji.usages[user.id] = usage.amount
 
     async def get_or_fetch_user(
             self, user_id: int, *, __user_cached={}  # noqa

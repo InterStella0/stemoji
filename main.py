@@ -5,7 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel
+from core.converter import PersonalEmojiModel, FavouriteEmojiModel
 from core.typings import EContext
 from utils.general import inline_pages
 from utils.parsers import env
@@ -18,6 +18,13 @@ bot = StellaEmojiBot()
 @app_commands.allowed_installs(guilds=True, users=True)
 async def e(ctx: EContext, emoji: PersonalEmojiModel):
     """Emote shortcut instead of a long ass name."""
+    await ctx.send(f"{emoji:u}")
+
+@bot.hybrid_command()
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def ef(ctx: EContext, emoji: FavouriteEmojiModel):
+    """Emoji Favourite shortcut instead of a long ass name."""
     await ctx.send(f"{emoji:u}")
 
 

@@ -275,3 +275,18 @@ class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
 
             content = f"No emoji was successfully saved{extras[0]}{extras[1]}"
         await interaction.edit_original_response(content=content)
+
+
+class SelectEmojiPagination(PaginationContextView):
+    selector: discord.ui.Select
+
+    def update_select(self):
+        emojis = self.data_source[self.current_page]
+        options = [discord.SelectOption(label=emoji.name, value=str(emoji.id), emoji=emoji.emoji) for emoji in emojis]
+        self.selector.options = options
+
+    @discord.ui.select(placeholder="Select an emoji")
+    async def selector(self, interaction: EInteraction, select: discord.ui.Select) -> None:
+        emoji_id, = select.values
+        emoji = interaction.client.get_custom_emoji(int(emoji_id))
+        await interaction.response.send_message(f"{emoji:u}")

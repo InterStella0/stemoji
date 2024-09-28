@@ -30,3 +30,9 @@ class NotEmojiOwner(commands.UserInputError):
     def __init__(self, emoji: PersonalEmoji):
         super().__init__(f"Only {emoji.added_by} can modify {emoji}!")
         self.emoji = emoji
+
+
+class NotEmojiFavourite(commands.UserInputError):
+    def __init__(self, emoji: PersonalEmoji):
+        super().__init__(f"{emoji} is not in your favourite list!")
+        self.emoji = emoji
