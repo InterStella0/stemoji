@@ -132,7 +132,7 @@ class StellaEmojiBot(commands.Bot):
         await self.db.init_database()
         await self.bot_metadata()
         asyncio.create_task(self.sync_emojis())
-        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling', 'jishaku']
+        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
             cogs.append('cogs.mirroring')
 

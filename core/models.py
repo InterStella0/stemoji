@@ -40,7 +40,7 @@ class PersonalEmoji:
         self.added_by: discord.User | discord.Member | discord.Object = None
 
     def to_choice_usage(self, user_id: int) -> Choice:
-        return Choice(name=f"{self.name} [{self.usages[user_id]}]", value=str(self.id))
+        return Choice(name=f"{self.name}", value=str(self.id))
 
     async def create_image_hash(self) -> imagehash.ImageHash:
         self.image_hash = await self.to_image_hash(self.emoji)
