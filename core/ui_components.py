@@ -213,7 +213,7 @@ async def saving_emoji_interaction(interaction: EInteraction, target_emoji: disc
 
 
 class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
-    def __init__(self, emojis: list[PersonalEmoji]):
+    def __init__(self, emojis: list[list[PersonalEmoji]]):
         super().__init__(emojis, delete_after=True)
         self.emoji_downloaded: dict[int, int] = {}
 
@@ -221,7 +221,7 @@ class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
     async def button_save(self, interaction: EInteraction, button: discord.ui.Button):
         await interaction.response.defer()
         button.disabled = True
-        target_emoji: PersonalEmoji = self.data_source[self.current_page]
+        target_emoji, = self.data_source[self.current_page]
         emoji = await interaction.client.save_emoji(target_emoji, interaction.user, duplicate_image=True)
         await interaction.followup.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!", ephemeral=True)
         self.emoji_downloaded[target_emoji.id] = emoji
@@ -230,7 +230,7 @@ class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
     @discord.ui.button(label="Save All", row=1, style=discord.ButtonStyle.blurple)
     async def button_save_all(self, interaction: EInteraction, button: discord.ui.Button):
         button.disabled = True
-        all_emojis = [emoji for emoji in self.data_source if emoji.id not in self.emoji_downloaded]
+        all_emojis = [emoji for emoji, in self.data_source if emoji.id not in self.emoji_downloaded]
 
         saved = []
         saved_mapping = set()
