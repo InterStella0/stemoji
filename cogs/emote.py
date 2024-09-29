@@ -269,7 +269,7 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
         emoji_dups = {emoji.id: asyncio.create_task(bot.find_image_duplicates(emoji)) for emoji in emojis}
         async for page in inline_pages(emojis, ctx, cls=EmojiDownloadView, per_page=1):
             item = page.item
-            emoji: PersonalEmoji = item.data
+            emoji: PersonalEmoji = item.data[0]
             file = await emoji.to_file(filename=f"{emoji.name}_emoji.png")
             dups = await emoji_dups[emoji.id]
             embed = discord.Embed(title=emoji.name).set_image(url=f"attachment://{file.filename}")
