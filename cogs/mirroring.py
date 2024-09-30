@@ -7,6 +7,7 @@ from discord import ClientUser
 from discord.ext import commands
 
 from core.typings import StellaEmojiBot
+from utils.general import LOGGER_NAME
 from utils.parsers import env
 
 
@@ -44,6 +45,7 @@ class MirrorCog(commands.Cog):
         self.original_image_path: str = ''
         self.original_client_username: str = ''
         self.is_retainable = None
+        self.log = logging.getLogger(f"{LOGGER_NAME}.mirror")
 
     async def save_original_image(self):
         self.is_avatar_default = self.bot.user.avatar is None
@@ -55,14 +57,14 @@ class MirrorCog(commands.Cog):
         await self.bot.user.display_avatar.save(self.original_image_path)
 
     async def retain_original_profile(self):
-        logging.info("RETAINING ORIGINAL PROFILE. PLEASE DO NOT FORCE SHUTDOWN!")
+        self.log.info("RETAINING ORIGINAL PROFILE. PLEASE DO NOT FORCE SHUTDOWN!")
         if not self.is_avatar_default:
             with open(self.original_image_path, 'rb') as r:
                 image_bytes = r.read()
         else:
             image_bytes = None
         await self.bot.user.edit(username=self.original_client_username, avatar=image_bytes)
-        logging.info("DONE :)")
+        self.log.info("DONE :)")
 
     async def save_original_profile(self):
         await self.save_original_image()
@@ -88,8 +90,8 @@ class MirrorCog(commands.Cog):
         await bot.user.edit(avatar=await owner.avatar.read(), username=f"{owner.global_name}{self.bot_suffixes}")
 
     async def cog_load(self) -> None:
-        logging.info("Profile syncing is enabled. This will override your bot's name and avatar in 90 seconds!")
-        logging.info("Set MIRROR_PROFILE to False if you want this to be disabled.")
+        self.log.info("Profile syncing is enabled. This will override your bot's name and avatar in 90 seconds!")
+        self.log.info("Set MIRROR_PROFILE to False if you want this to be disabled.")
         asyncio.create_task(self._profile_sync())
 
     async def cog_unload(self) -> None:

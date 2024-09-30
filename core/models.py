@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import asyncio
 import dataclasses
 import io
+import logging
 import re
-import sys
 from collections import defaultdict
 from typing import Generator, Self
 
@@ -14,11 +15,10 @@ import starlight
 from PIL import Image
 from discord import app_commands
 from discord.app_commands import Choice
-from discord.ext import commands
 
 from core.errors import UserInputError
 from core.typings import EContext, EInteraction, StellaEmojiBot
-from utils.general import emoji_context
+from utils.general import emoji_context, LOGGER_NAME
 from utils.parsers import FuzzyInsensitive
 
 
@@ -74,7 +74,7 @@ class PersonalEmoji:
             except LookupError:
                 user = None
             if user is None:
-                print(f" {self} was used but unable to identify user.", file=sys.stderr)
+                logging.getLogger(LOGGER_NAME).warning(f" {self} was used but unable to identify user.")
             else:
                 self.used(user, used)
             format_spec = self.USED_FORMATTER_RE.sub("", format_spec)
