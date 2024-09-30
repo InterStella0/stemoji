@@ -1,26 +1,31 @@
+from __future__ import annotations
 import asyncio
 import datetime
 import functools
 import json
 import logging
 import re
+from typing import Any
 
 import aiohttp
 import discord
 import starlight
+from discord import app_commands
 from discord.ext import commands
 
 from core.db import DbPostgres, DbSqlite
 from core.errors import EmojiImageDuplicates
 from core.models import PersonalEmoji, NormalEmoji
 from core.typings import EContext
-from utils.general import emoji_context
+from utils.general import emoji_context, slash_context, LOGGER_NAME
 from utils.parsers import env
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 
 
 class StellaEmojiBot(commands.Bot):
+    tree: Tree
+
     def __init__(self) -> None:
         intents = discord.Intents.default()
         intents.message_content = env("MESSAGE_CONTENT_INTENTS", bool)
@@ -31,7 +36,8 @@ class StellaEmojiBot(commands.Bot):
 
         super().__init__(
             cmd_prefix, intents=intents, strip_after_prefix=True, help_command=starlight.MenuHelpCommand(),
-            max_messages=None, chunk_guilds_at_startup=False, member_cache_flags=discord.MemberCacheFlags.none()
+            max_messages=None, chunk_guilds_at_startup=False, member_cache_flags=discord.MemberCacheFlags.none(),
+            tree_cls=Tree
         )
         self.emojis_users: dict[int, PersonalEmoji] = {}
         self.emoji_names: dict[str, int] = {}
@@ -44,14 +50,14 @@ class StellaEmojiBot(commands.Bot):
         elif env("DATABASE") == 'sqlite':
             self.db: DbSqlite = DbSqlite(conn_string)
         else:
-            raise RuntimeError("DATABASE environment variable is not valid.")
+            raise RuntimeError("DATABASE environment variable has an invalid choice.")
 
         self.check_once(self.called_everywhere)
         self.__get_user_lock: asyncio.Lock = asyncio.Lock()
         self._fetched_user_usage: set[int] = set()
         self._fetched_fav_usage: set[int] = set()
         self._extension_loaded: asyncio.Event = asyncio.Event()
-        self.log = logging.getLogger("stemoji")
+        self.log = logging.getLogger(LOGGER_NAME)
 
     def passive_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
         if user.id in self._fetched_user_usage:
@@ -95,6 +101,7 @@ class StellaEmojiBot(commands.Bot):
 
     def called_everywhere(self, ctx: EContext): # noqa
         emoji_context.set(ctx.author)
+        slash_context.set(ctx)
         return True
 
     async def ensure_user(
@@ -141,6 +148,13 @@ class StellaEmojiBot(commands.Bot):
 
         self._extension_loaded.set()
 
+    async def append_metadata(self, key: str, data: Any) -> None:
+        meta = await self.db.fetch_metadata(VERSION)
+        new_meta = meta.data.copy()
+        new_meta[key] = data
+        self.log.debug(f"Metadata {json.dumps(new_meta, indent=4)}")
+        await self.db.update_metadata(meta.id, new_meta)
+
     async def bot_metadata(self):
         self.log.info(f"Bot's version {VERSION}.")
         meta = await self.db.fetch_metadata(VERSION)
@@ -152,18 +166,21 @@ class StellaEmojiBot(commands.Bot):
         if new_meta.get("first_time") is None or new_meta.get("first_time") is True:
             async def t():
                 await self._extension_loaded.wait()
+                self.log.info(f"Version change detected. Syncing slash command to discord in 10 seconds.")
                 await asyncio.sleep(10)
                 slashs = await self.tree.sync()
                 self.log.info(f"Synced {len(slashs)} commands.")
 
             asyncio.create_task(t())
-            self.log.info(f"Version change detected. Syncing slash command to discord in 10 seconds.")
             new_meta["first_time"] = False
         else:
             info = datetime.datetime.now().astimezone().tzinfo
             self.log.info(f"Using {VERSION} since {meta.created_at.astimezone(info)}.")
             self.log.info(f"Bot start counter {new_meta['start_counter']}")
+            self.tree.update_slash_lookup(meta.data["slash_commands"])
+
         await self.db.update_metadata(meta.id, new_meta)
+        self.log.debug(f"Bot metadata updated.")
 
     async def _starter(self, token: str):
         discord.utils.setup_logging()
@@ -264,3 +281,54 @@ class NormalDiscordEmoji:
 
     def get(self, name: str) -> NormalEmoji | None:
         return self.mapping.get(name)
+
+
+class Tree(app_commands.CommandTree[StellaEmojiBot]):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._slash_hashes: dict[str, dict[int | None, int]] = {}
+
+    async def interaction_check(self, interaction: discord.Interaction[StellaEmojiBot], /) -> bool:
+        emoji_context.set(interaction.user)
+        slash_context.set(interaction)
+        return True
+
+    def update_slash_lookup(self, app_mapping: dict[list[dict[str, Any]]]):
+        self._slash_hashes.clear()
+        for scope, apps in app_mapping.items():
+            scope: int | None = None if scope == 'null' else int(scope)
+            for app in map(lambda data: app_commands.AppCommand(data=data, state=self._state), apps):
+                scoping = self._slash_hashes.setdefault(app.name, {})
+                scoping[scope] = app.id
+                for option in app.options:
+                    if not isinstance(option, app_commands.AppCommandGroup):
+                        continue
+
+                    for sub_option in option.options:
+                        if not isinstance(sub_option, app_commands.AppCommandGroup):
+                            continue
+
+                        scoping = self._slash_hashes.setdefault(sub_option.qualified_name, {})
+                        scoping[scope] = app.id
+
+                    scoping = self._slash_hashes.setdefault(option.qualified_name, {})
+                    scoping[scope] = app.id
+
+    def get_command_named(self, command: str, scope: discord.Guild | None, *, fallback=True):
+        try:
+            return self._slash_hashes[command][getattr(scope, 'id', None)]
+        except KeyError:
+            if scope is not None and fallback:
+                return self.get_command_named(command, None)
+
+    async def sync(self, *, guild: discord.abc.Snowflake | None = None) -> list[app_commands.AppCommand]:
+        slashs = await super().sync(guild=guild)
+        meta = await self.client.db.fetch_metadata(VERSION)
+        d = meta.data.copy()
+        slash = d.get("slash_commands", {})
+        key = getattr(guild, 'id', None)
+        serialize = [slash.to_dict() for slash in slashs]
+        slash[key] = serialize
+        await self.client.append_metadata("slash_commands", slash)
+        self.update_slash_lookup(slash)
+        return slashs

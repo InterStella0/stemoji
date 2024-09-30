@@ -10,13 +10,14 @@ from core import errors
 from core.errors import EmojiImageDuplicates, UserInputError
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
-from utils.general import emoji_context
+from utils.general import emoji_context, slash_context
 from utils.parsers import VALID_EMOJI_SEMI, VALID_EMOJI_NORMAL
 
 
 class ContextModal(discord.ui.Modal):
     async def interaction_check(self, interaction: EInteraction, /) -> bool:
         emoji_context.set(interaction.user)
+        slash_context.set(interaction)
         return await super().interaction_check(interaction)
 
     async def on_error(self, interaction: EInteraction, error: Exception, /) -> None:
@@ -34,6 +35,7 @@ class ContextModal(discord.ui.Modal):
 class ContextView(discord.ui.View):
     async def interaction_check(self, interaction: EInteraction, /) -> bool:
         emoji_context.set(interaction.user)
+        slash_context.set(interaction)
         return await super().interaction_check(interaction)
 
     async def on_error(self, interaction: EInteraction, error: Exception, item: discord.ui.Item) -> None:

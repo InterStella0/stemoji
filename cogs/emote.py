@@ -13,7 +13,7 @@ from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
     ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination
-from utils.general import inline_pages
+from utils.general import inline_pages, slash_parse as _S
 from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find_latest_unpaired_emoji, \
     VALID_EMOJI_NORMAL, FuzzyInsensitive
 
@@ -177,7 +177,7 @@ class Emoji(commands.GroupCog):
             p_emojis.sort(key=lambda emote: emote.usages[author.id], reverse=True)
 
         if not records:
-            raise UserInputError("No favourite emoji found!")
+            raise UserInputError(_S("No favourite emoji found! Do /emoji favourite add: to add a new emoji."))
 
         size_list = len(p_emojis)
         PER_PAGE = 5
@@ -232,7 +232,7 @@ class Emoji(commands.GroupCog):
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
 async def replying_emoji(interaction: EInteraction, message: discord.Message):
-    await interaction.response.send_message("Waiting for an emoji to be sent. do /emoji send <emoji>", ephemeral=True)
+    await interaction.response.send_message(_S("Waiting for an emoji to be sent. Use /emoji send:"), ephemeral=True)
 
     def check(user, _):
         return user == interaction.user
