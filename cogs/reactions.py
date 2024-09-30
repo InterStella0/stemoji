@@ -9,7 +9,8 @@ from discord.ext import commands
 
 from core.models import PersonalEmoji
 from core.typings import EInteraction, StellaEmojiBot
-from core.ui_components import ContextView, ContextViewAuthor
+from core.ui_components import ContextView
+from utils.general import slash_parse as _S
 
 
 class ReactionCog(commands.Cog):
@@ -42,7 +43,7 @@ class ReactionCog(commands.Cog):
                 view.add_item(button)
 
             await interaction.response.send_message(
-                "Choose an emoji. \n-# You can also use /emoji send <emoji>", view=view, ephemeral=True
+                _S("Choose an emoji. \n-# You can also use /emoji send: <emoji>"), view=view, ephemeral=True
             )
             async for inter, item in starlight.inline_view(view):
                 await inter.response.edit_message(content=f"Reacting {item.emoji}")
@@ -51,7 +52,7 @@ class ReactionCog(commands.Cog):
                 break
 
         else:
-            await interaction.response.send_message("Use /emoji send <emoji> to choose an emoji", ephemeral=True)
+            await interaction.response.send_message(_S("Use /emoji send: <emoji> to choose an emoji"), ephemeral=True)
 
             def check(user, emote):
                 return user == interaction.user
