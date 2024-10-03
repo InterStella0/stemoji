@@ -1,10 +1,12 @@
+import os
 from typing import Annotated
 
 import discord
 from discord.app_commands import Choice, Transformer
+from discord.ext import commands
 from discord.ext.commands import Converter
 
-from core.errors import NotEmojiOwner, NotEmojiFavourite, UserInputError
+from core.errors import NotEmojiOwner, NotEmojiFavourite, UserInputError, InvalidEmoji
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 
@@ -83,7 +85,35 @@ class FavouriteEmojiConverter(PersonalEmojiConverter):
         return await PersonalEmoji.autocomplete(interaction, current, fav_only=True)
 
 
+class EmojiConverter(commands.PartialEmojiConverter, Transformer):
+    async def convert(self, ctx: EContext, argument: str) -> discord.PartialEmoji:
+        try:
+            return await super().convert(ctx, argument)
+        except commands.PartialEmojiConversionFailure:
+            pass
+
+        try:
+            emoji = discord.Object(argument)
+        except TypeError:
+            raise InvalidEmoji(argument)
+
+        partial = discord.PartialEmoji.with_state(
+            ctx.bot._connection, id=emoji.id, name=f"Unknown{os.urandom(3).hex()}"
+        )
+        try:
+            await partial.read()
+        except discord.NotFound:
+            raise InvalidEmoji(argument)
+
+        return partial
+
+    async def transform(self, interaction: EInteraction, value: str, /) -> PersonalEmoji:
+        ctx = await interaction.client.get_context(interaction)
+        return await self.convert(ctx, value)
+
+
 PersonalEmojiModel = Annotated[PersonalEmoji, PersonalEmojiConverter]
 FavouriteEmojiModel = Annotated[PersonalEmoji, FavouriteEmojiConverter]
 PrivateEmojiModel = Annotated[PersonalEmoji, PrivateEmojiConverter]
 SearchEmojiModel = Annotated[PersonalEmoji | str, SearchEmojiConverter]
+EmojiModel = Annotated[discord.PartialEmoji, EmojiConverter]

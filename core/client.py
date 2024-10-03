@@ -20,7 +20,7 @@ from core.typings import EContext
 from utils.general import emoji_context, slash_context, LOGGER_NAME
 from utils.parsers import env
 
-VERSION = "0.0.2"
+VERSION = "0.0.2f"
 
 
 class StellaEmojiBot(commands.Bot):
@@ -58,6 +58,7 @@ class StellaEmojiBot(commands.Bot):
         self._fetched_fav_usage: set[int] = set()
         self._extension_loaded: asyncio.Event = asyncio.Event()
         self.log = logging.getLogger(LOGGER_NAME)
+        self.session: aiohttp.ClientSession | None = None
 
     def passive_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
         if user.id in self._fetched_user_usage:
@@ -184,7 +185,7 @@ class StellaEmojiBot(commands.Bot):
 
     async def _starter(self, token: str):
         discord.utils.setup_logging()
-        async with self, self.db:
+        async with self, self.db, aiohttp.ClientSession() as self.session:
             await self.start(token)
 
         if self.normal_emojis.http:
@@ -200,8 +201,9 @@ class StellaEmojiBot(commands.Bot):
             emoji_id = self.emoji_names.get(hasher)
             return self.emojis_users.get(emoji_id)
 
-    async def find_image_duplicates(self, emoji: discord.Emoji | discord.PartialEmoji) -> list[tuple[PersonalEmoji, int]]:
-        hasher = await PersonalEmoji.to_image_hash(emoji)
+    async def find_image_duplicates(self, emoji: discord.Emoji | discord.PartialEmoji | bytes) -> list[tuple[PersonalEmoji, int]]:
+        find_hash = PersonalEmoji.to_byte_hash if isinstance(emoji, bytes) else PersonalEmoji.to_image_hash
+        hasher = await find_hash(emoji)
         similarity_emoji = [(emoji, hasher - emoji.image_hash) for emoji in self.emojis_users.values()]
         similarity_emoji.sort(key=lambda sim: sim[1])
         return [e for e in similarity_emoji if e[1] < 9][:5]
@@ -296,7 +298,7 @@ class Tree(app_commands.CommandTree[StellaEmojiBot]):
     def update_slash_lookup(self, app_mapping: dict[list[dict[str, Any]]]):
         self._slash_hashes.clear()
         for scope, apps in app_mapping.items():
-            scope: int | None = None if scope == 'null' else int(scope)
+            scope: int | None = None if scope in ('null', None) else int(scope)
             for app in map(lambda data: app_commands.AppCommand(data=data, state=self._state), apps):
                 scoping = self._slash_hashes.setdefault(app.name, {})
                 scoping[scope] = app.id

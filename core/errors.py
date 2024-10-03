@@ -36,3 +36,9 @@ class NotEmojiFavourite(commands.UserInputError):
     def __init__(self, emoji: PersonalEmoji):
         super().__init__(f"{emoji} is not in your favourite list!")
         self.emoji = emoji
+
+
+class InvalidEmoji(commands.UserInputError):
+    def __init__(self, emoji: str):
+        super().__init__(f"{emoji} is not a valid emoji that can be downloaded!")
+        self.emoji = emoji

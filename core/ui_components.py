@@ -214,25 +214,35 @@ async def saving_emoji_interaction(interaction: EInteraction, target_emoji: disc
     return emoji
 
 
-class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
-    def __init__(self, emojis: list[list[PersonalEmoji]]):
-        super().__init__(emojis, delete_after=True)
+EMOJI_TARGET = PersonalEmoji | discord.Emoji | discord.PartialEmoji
+class SaveButton(discord.ui.Button[ContextView]):
+    def __init__(self, target_emoji: EMOJI_TARGET | None = None, **kwargs):
+        super().__init__(label="Save", style=discord.ButtonStyle.green, **kwargs)
+        self.target_emoji: EMOJI_TARGET | None = target_emoji
         self.emoji_downloaded: dict[int, int] = {}
 
-    @discord.ui.button(label="Save", row=1, style=discord.ButtonStyle.green)
-    async def button_save(self, interaction: EInteraction, button: discord.ui.Button):
+    async def callback(self, interaction: EInteraction) -> None:
         await interaction.response.defer()
-        button.disabled = True
-        target_emoji, = self.data_source[self.current_page]
+        self.disabled = True
+        target_emoji = self.target_emoji
         emoji = await interaction.client.save_emoji(target_emoji, interaction.user, duplicate_image=True)
         await interaction.followup.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!", ephemeral=True)
         self.emoji_downloaded[target_emoji.id] = emoji
-        await self.message.edit(view=self)
+        await interaction.edit_original_response(view=self.view)
+
+
+class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
+    def __init__(self, emojis: list[list[PersonalEmoji]]):
+        super().__init__(emojis, delete_after=True)
+        self.save_button = SaveButton(row=1)
+        self.add_item(self.save_button)
 
     @discord.ui.button(label="Save All", row=1, style=discord.ButtonStyle.blurple)
     async def button_save_all(self, interaction: EInteraction, button: discord.ui.Button):
+        # TODO: Add pagination for long emoji downloads.
         button.disabled = True
-        all_emojis = [emoji for emoji, in self.data_source if emoji.id not in self.emoji_downloaded]
+        self.save_button.disabled = True
+        all_emojis = [emoji for emoji, in self.data_source if emoji.id not in self.save_button.emoji_downloaded]
 
         saved = []
         saved_mapping = set()
@@ -249,7 +259,7 @@ class EmojiDownloadView(PaginationContextView[PersonalEmoji]):
                 traceback.print_exc()
                 continue
 
-            self.emoji_downloaded[target_emoji.id] = emoji
+            self.save_button.emoji_downloaded[target_emoji.id] = emoji
             saved_mapping.add(target_emoji.id)
             saved.append(emoji)
         non_error_set = {*saved_mapping, *[emote.emoji.id for emote in dups]}

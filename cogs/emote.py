@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 import discord
 import starlight
@@ -7,12 +8,12 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, SearchEmojiConverter
+from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, SearchEmojiConverter, EmojiModel
 from core.errors import UserInputError
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
-    ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination
+    ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination, SaveButton
 from utils.general import inline_pages, slash_parse as _S
 from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find_latest_unpaired_emoji, \
     VALID_EMOJI_NORMAL, FuzzyInsensitive
@@ -192,6 +193,43 @@ class Emoji(commands.GroupCog):
             embed.title = f"List of favourite emojis [`{size_list}`]"
             embed.description = list_emojis
 
+    @commands.hybrid_group(name="add")
+    async def emoji_add(self, ctx: EContext):
+        pass
+
+    @emoji_add.command(name="id")
+    async def emoji_add_id(self, ctx: EContext, emoji: EmojiModel, name: str | None = None, is_animated: bool = False):
+        """Adding emoji by copying the emoji id or giving <:id:name:>"""
+        async with ctx.typing():
+            bot = ctx.bot
+            emoji.animated = is_animated
+            dups = await bot.find_image_duplicates(emoji)
+            emoji_name = name or emoji.name or f"Unknown{os.urandom(3).hex()}"
+            file = await emoji.to_file(filename=f"{emoji_name}_emoji.{'gif' if is_animated else 'png'}")
+        embed = discord.Embed(title=f"{emoji_name} Emoji")
+        embed.title = emoji_name
+        embed.description = "The emoji you're about to add."
+        embed.set_image(url=f"attachment://{file.filename}")
+        if dups:
+            found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
+            embed.description = f"Possible duplicates:\n{found_dups}"
+
+        view = ContextViewAuthor()
+        view.context = ctx
+        view.add_item(SaveButton(emoji))
+        view.message = await ctx.send(embed=embed, file=file, view=view)
+
+    @emoji_add.command(name="image")
+    async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
+        # TODO: HERE
+        if image.content_type != 'image/png':
+            raise UserInputError("This is not a png!")
+
+        async with ctx.typing(ephemeral=True):
+            image_bytes = await image.read()
+
+
+
     @fav.command('add')
     async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):
         """Add an emoji into your favourite list."""
@@ -254,6 +292,50 @@ async def replying_emoji(interaction: EInteraction, message: discord.Message):
             await interaction.delete_original_response()
 
 
+async def emoji_paginations(emojis: list[PersonalEmoji], context: EContext):
+    emoji_dups = {emoji.id: asyncio.create_task(context.bot.find_image_duplicates(emoji)) for emoji in emojis}
+    async for page in inline_pages(emojis, context, cls=EmojiDownloadView, per_page=1):
+        item = page.item
+        emoji, = item.data
+        view = page.view
+        save_button = view.save_button
+        save_button.target_emoji = emoji
+        file = await emoji.to_file(filename=f"{emoji.name}_emoji.png")
+        dups = await emoji_dups[emoji.id]
+        embed = page.embed
+        embed.title = emoji.name
+        embed.set_image(url=f"attachment://{file.filename}")
+        if dups:
+            found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
+            embed.description = f"Possible duplicates:\n{found_dups}"
+
+        save_button.disabled = emoji.id in view.save_button.emoji_downloaded
+        if page.iteration == 0:
+            item.format(embed=embed, file=file)
+        else:
+            item.format(embed=embed, attachments=[file])
+
+
+@app_commands.context_menu(name="Steal Emoji Server")
+@app_commands.allowed_contexts(guilds=True)
+@app_commands.allowed_installs(users=True)
+async def steal_emoji_guild(interaction: EInteraction, message: discord.Message):
+    emojis = message.guild.emojis
+    await interaction.response.defer(ephemeral=True)
+    try:
+        emojis = emojis or await message.guild.fetch_emojis()
+    except discord.NotFound:
+        raise UserInputError(f"No permission to view {str(message.guild) or 'this'} server! Looks like you have to find"
+                             f" messages that uses the custom emojis to steal it :/")
+
+    if not emojis:
+        raise UserInputError(f"No server emojis found!")
+
+    bot = interaction.client
+    emotes = [PersonalEmoji(bot, emoji) for emoji in emojis]
+    await emoji_paginations(emotes, await bot.get_context(interaction))
+
+
 @app_commands.context_menu(name="Steal Emoji")
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
@@ -262,27 +344,12 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
     await interaction.response.defer(ephemeral=True)
     bot = interaction.client
     ctx = await bot.get_context(interaction)
-    emojis = [*PersonalEmoji.find_all_emojis(bot, message.content)]
+    content = f"{message.content} {[embed.to_dict() for embed in message.embeds]}"  # Lazies woman in the world lol
+    emojis = [*PersonalEmoji.find_all_emojis(bot, content)]
     if not emojis:
         raise UserInputError("No custom emoji found!")
     elif len(emojis) > 1:
-        emoji_dups = {emoji.id: asyncio.create_task(bot.find_image_duplicates(emoji)) for emoji in emojis}
-        async for page in inline_pages(emojis, ctx, cls=EmojiDownloadView, per_page=1):
-            item = page.item
-            emoji, = item.data
-            file = await emoji.to_file(filename=f"{emoji.name}_emoji.png")
-            dups = await emoji_dups[emoji.id]
-            embed = discord.Embed(title=emoji.name).set_image(url=f"attachment://{file.filename}")
-            if dups:
-                found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
-                embed.description = f"Possible duplicates:\n{found_dups}"
-            view = page.view
-            view.button_save.disabled = emoji.id in view.emoji_downloaded
-            if page.iteration == 0:
-                item.format(embed=embed, file=file)
-            else:
-                item.format(embed=embed, attachments=[file])
-
+        await emoji_paginations(emojis, ctx)
     else:
         target_emoji = emojis[0]
         await saving_emoji_interaction(interaction, target_emoji)
@@ -291,8 +358,10 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
 async def setup(bot: StellaEmojiBot) -> None:
     bot.tree.add_command(steal_emoji)
     bot.tree.add_command(replying_emoji)
+    bot.tree.add_command(steal_emoji_guild)
     await bot.add_cog(Emoji())
 
 async def teardown(bot: StellaEmojiBot) -> None:
     bot.tree.remove_command(steal_emoji)
     bot.tree.remove_command(replying_emoji)
+    bot.tree.remove_command(steal_emoji_guild)

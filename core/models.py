@@ -51,14 +51,17 @@ class PersonalEmoji:
         return self.image_hash
 
     @staticmethod
-    async def to_image_hash(emoji: discord.Emoji | discord.PartialEmoji | PersonalEmoji) -> imagehash.ImageHash:
-        img_byte = await emoji.read()
-
+    async def to_byte_hash(emoji_bytes: bytes) -> imagehash.ImageHash:
         def form_hash(_byte):
             with Image.open(io.BytesIO(_byte)) as img:
                 return imagehash.phash(img)
 
-        return await asyncio.to_thread(form_hash, img_byte)
+        return await asyncio.to_thread(form_hash, emoji_bytes)
+
+    @staticmethod
+    async def to_image_hash(emoji: discord.Emoji | discord.PartialEmoji | PersonalEmoji) -> imagehash.ImageHash:
+        img_byte = await emoji.read()
+        return await PersonalEmoji.to_byte_hash(img_byte)
 
     def __str__(self):
         return f"{self.emoji}"
