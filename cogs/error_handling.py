@@ -29,9 +29,9 @@ class ErrorCog(commands.Cog):
             traceback.print_exception(error)
 
         if not interaction.response.is_done():
-            await interaction.response.send_message(error_message)
+            await interaction.response.send_message(error_message, ephemeral=True)
         else:
-            await interaction.followup.send(error_message)
+            await interaction.followup.send(error_message, ephemeral=True)
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx: EContext, error: commands.CommandError) -> None:
@@ -43,7 +43,7 @@ class ErrorCog(commands.Cog):
         intentional_error = (UserInputError,)
         if not isinstance(error, intentional_error):
             traceback.print_exception(error)
-        await ctx.send(f"{error_message}")
+        await ctx.send(f"{error_message}", ephemeral=True)
 
 
 async def setup(bot: StellaEmojiBot) -> None:
