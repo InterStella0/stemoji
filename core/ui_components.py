@@ -1,7 +1,7 @@
 import asyncio
 import io
 import traceback
-from typing import Any, TypeVar, Generic
+from typing import Any, TypeVar, Generic, Sequence, List
 
 import discord
 import starlight
@@ -71,6 +71,7 @@ class TextEmojiModal(ContextModal, title="Emoji Support"):
         text = VALID_EMOJI_NORMAL.sub(normal_emoji, text)
         await interaction.response.send_message(text)
 
+
 class RenameEmojiModal(ContextModal, title="Emoji Edit"):
     name = discord.ui.TextInput(label="New Name")
 
@@ -104,6 +105,7 @@ class RenameEmojiButton(discord.ui.Button):
 
     async def callback(self, interaction: EInteraction) -> Any:
         await interaction.response.send_modal(RenameEmojiModal(self.personal_emoji))
+
 
 class ContextViewAuthor(ContextView, starlight.ViewAuthor):
     pass
@@ -170,8 +172,30 @@ class SendEmojiView(ContextViewAuthor):
 
 
 T = TypeVar('T')
+
+
 class PaginationContextView(ContextView, starlight.SimplePaginationView, Generic[T]):
-    _data_source: T
+    _data_source: List[T]
+
+    def __init__(self, data_source: Sequence[T], /, *, cache_page: bool = False, delete_after=True, **kwargs):
+        super().__init__(data_source, cache_page=cache_page, delete_after=delete_after, **kwargs)
+        self.remove_item(self.stop_button)
+
+    @discord.ui.button(emoji="<:backward:1059315483599446156>")
+    async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.to_start(interaction)
+
+    @discord.ui.button(emoji="<:left:1059315476737572904>")
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.to_previous(interaction)
+
+    @discord.ui.button(emoji="<:Right:1059315473369538570>")
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.to_next(interaction)
+
+    @discord.ui.button(emoji="<:forward:1059315487017808014>")
+    async def end_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.to_end(interaction)
 
 
 async def author_prompter(view, text: str, ctx: EContext, ephemeral=False) -> bool | None:
@@ -221,9 +245,11 @@ async def saving_emoji_interaction(
 
 
 EMOJI_TARGET = PersonalEmoji | discord.Emoji | discord.PartialEmoji | DownloadedEmoji
+
+
 class SaveButton(discord.ui.Button[ContextView]):
     def __init__(self, target_emoji: EMOJI_TARGET | None = None, **kwargs):
-        super().__init__(label="Save", style=discord.ButtonStyle.green, **kwargs)
+        super().__init__(label="Save", style=discord.ButtonStyle.green, emoji="\U0001f4be", **kwargs)
         self.target_emoji: EMOJI_TARGET | None = target_emoji
         self.emoji_downloaded: dict[int, int] = {}
 
