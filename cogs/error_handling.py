@@ -1,11 +1,9 @@
 import traceback
 
 from discord import app_commands
-from discord.app_commands import TransformerError
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiConverter
 from core.errors import UserInputError
 from core.typings import EContext, EInteraction
 

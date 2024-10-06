@@ -191,26 +191,32 @@ async def prompt(ctx: EContext, ephemeral=False, **kwargs) -> bool | None:
         return item.label == "Yes"
 
 
-async def saving_emoji_interaction(interaction: EInteraction, target_emoji: discord.Emoji | discord.PartialEmoji) -> PersonalEmoji:
+async def saving_emoji_interaction(
+        ctx_or_inter: EInteraction | EContext, target_emoji: discord.Emoji | discord.PartialEmoji | DownloadedEmoji
+) -> PersonalEmoji:
+    ctx = ctx_or_inter
+    if isinstance(ctx, EInteraction):
+        ctx = await ctx_or_inter.client.get_context(ctx_or_inter)
+
+    bot = ctx.bot
     try:
-        emoji = await interaction.client.save_emoji(target_emoji, interaction.user)
+        emoji = await bot.save_emoji(target_emoji, ctx.author)
     except errors.EmojiImageDuplicates as e:
-        ctx = await interaction.client.get_context(interaction)
         emojis = "\n".join([f"- {emoji[0]} ({emoji[0].name})" for emoji in e.similars])
         text = (f"{e}. \n{emojis}"
                 f"\n\n**Do you want to add regardless?**")
         file = discord.File(io.BytesIO(await target_emoji.read()), filename='emoji.png')
-        embed = discord.Embed(title=f"Stealing Emoji", description=text)
+        embed = discord.Embed(title=f"Target Emoji", description=text)
         embed.set_image(url=f"attachment://{file.filename}")
         response = await prompt(ctx, ephemeral=True, embed=embed, file=file)
         if not response:
             return
 
-        emoji = await interaction.client.save_emoji(target_emoji, interaction.user, duplicate_image=True)
+        emoji = await bot.save_emoji(target_emoji, ctx.author, duplicate_image=True)
     except Exception as e:
         raise e from None
 
-    await interaction.followup.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!", ephemeral=True)
+    await ctx.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!", ephemeral=True)
     return emoji
 
 

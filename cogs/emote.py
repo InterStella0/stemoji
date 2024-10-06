@@ -221,29 +221,13 @@ class Emoji(commands.GroupCog):
 
     @emoji_add.command(name="image")
     async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
-        if image.content_type not in ('image/bmp', 'image/jpeg', 'image/x-png', 'image/png', 'image/gif'):
-            raise UserInputError("This is not a valid image!")
-
         async with ctx.typing(ephemeral=True):
+            if image.content_type not in ('image/bmp', 'image/jpeg', 'image/x-png', 'image/png', 'image/gif'):
+                raise UserInputError("This is not a valid image!")
+
             image_bytes = await image.read()
-            dups = await ctx.bot.find_image_duplicates(image_bytes)
-
-        emoji = DownloadedEmoji(image_bytes=image_bytes, name=name)
-        if dups:
-            file = discord.File(io.BytesIO(image_bytes), filename=image.filename)
-            embed = discord.Embed(title=f"{name} Emoji")
-            embed.description = "The emoji you're about to add."
-            embed.set_image(url=f"attachment://{file.filename}")
-            found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
-            embed.description = f"Possible duplicates:\n{found_dups}"
-            view = ContextViewAuthor()
-            view.context = ctx
-            view.add_item(SaveButton(emoji))
-            await ctx.send(view=view, embed=embed, file=file)
-            return
-
-        emoji = await ctx.bot.save_emoji(emoji, ctx.author, duplicate_image=True)
-        await ctx.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!")
+            emoji = DownloadedEmoji(image_bytes=image_bytes, name=name)
+        await saving_emoji_interaction(ctx, emoji)
 
     @fav.command('add')
     async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):
