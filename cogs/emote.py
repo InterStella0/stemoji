@@ -23,6 +23,13 @@ from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
 class Emoji(commands.GroupCog):
+
+    @commands.hybrid_command()
+    async def link(self, ctx: EContext, emoji: PersonalEmojiModel):
+        """Get emoji link for an emoji."""
+        emoji.used(ctx.author)
+        await ctx.send(f"{emoji.url}")
+
     @commands.hybrid_command()
     async def send(self, ctx: EContext, emoji: PersonalEmojiModel):
         """Choosing how many emoji to send to the user. Text commands just sent the emoji normally."""

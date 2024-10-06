@@ -28,6 +28,16 @@ async def ef(ctx: EContext, emoji: FavouriteEmojiModel):
     await ctx.send(f"{emoji:u}")
 
 
+@bot.hybrid_command()
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+async def el(ctx: EContext, emoji: PersonalEmojiModel):
+    """Get emoji link shortcut."""
+    emoji.used(ctx.author)
+    await ctx.send(f"{emoji.url}")
+
+
+
 @bot.command()
 @commands.is_owner()
 async def sync(ctx: EContext, guild: discord.Guild | None = None):
