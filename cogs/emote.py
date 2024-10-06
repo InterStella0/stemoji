@@ -221,11 +221,18 @@ class Emoji(commands.GroupCog):
 
     @emoji_add.command(name="image")
     async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
+        allowed_types = ('image/bmp', 'image/jpeg', 'image/x-png', 'image/webp', 'image/png', 'image/gif')
         async with ctx.typing(ephemeral=True):
-            if image.content_type not in ('image/bmp', 'image/jpeg', 'image/x-png', 'image/png', 'image/gif'):
+            if image.content_type not in allowed_types:
                 raise UserInputError("This is not a valid image!")
 
             image_bytes = await image.read()
+            try:
+                # directly check image bytes
+                discord.utils._get_mime_type_for_image(image_bytes)
+            except ValueError:
+                raise UserInputError("This is not a valid image!")
+
             emoji = DownloadedEmoji(image_bytes=image_bytes, name=name)
         await saving_emoji_interaction(ctx, emoji)
 
