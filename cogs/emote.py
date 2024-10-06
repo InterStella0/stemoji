@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 
 import discord
@@ -10,7 +11,7 @@ from discord.ext import commands
 from core.client import StellaEmojiBot
 from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, SearchEmojiConverter, EmojiModel
 from core.errors import UserInputError
-from core.models import PersonalEmoji
+from core.models import PersonalEmoji, DownloadedEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
     ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination, SaveButton
@@ -207,7 +208,6 @@ class Emoji(commands.GroupCog):
             emoji_name = name or emoji.name or f"Unknown{os.urandom(3).hex()}"
             file = await emoji.to_file(filename=f"{emoji_name}_emoji.{'gif' if is_animated else 'png'}")
         embed = discord.Embed(title=f"{emoji_name} Emoji")
-        embed.title = emoji_name
         embed.description = "The emoji you're about to add."
         embed.set_image(url=f"attachment://{file.filename}")
         if dups:
@@ -221,14 +221,29 @@ class Emoji(commands.GroupCog):
 
     @emoji_add.command(name="image")
     async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
-        # TODO: HERE
-        if image.content_type != 'image/png':
-            raise UserInputError("This is not a png!")
+        if image.content_type not in ('image/bmp', 'image/jpeg', 'image/x-png', 'image/png', 'image/gif'):
+            raise UserInputError("This is not a valid image!")
 
         async with ctx.typing(ephemeral=True):
             image_bytes = await image.read()
+            dups = await ctx.bot.find_image_duplicates(image_bytes)
 
+        emoji = DownloadedEmoji(image_bytes=image_bytes, name=name)
+        if dups:
+            file = discord.File(io.BytesIO(image_bytes), filename=image.filename)
+            embed = discord.Embed(title=f"{name} Emoji")
+            embed.description = "The emoji you're about to add."
+            embed.set_image(url=f"attachment://{file.filename}")
+            found_dups = '\n'.join([f'- {emote} ({emote.name})' for emote, _score in dups])
+            embed.description = f"Possible duplicates:\n{found_dups}"
+            view = ContextViewAuthor()
+            view.context = ctx
+            view.add_item(SaveButton(emoji))
+            await ctx.send(view=view, embed=embed, file=file)
+            return
 
+        emoji = await ctx.bot.save_emoji(emoji, ctx.author, duplicate_image=True)
+        await ctx.send(f"Downloaded {emoji}. Use *{emoji.name}* to refer to it!")
 
     @fav.command('add')
     async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):

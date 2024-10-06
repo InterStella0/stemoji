@@ -20,7 +20,7 @@ from core.typings import EContext
 from utils.general import emoji_context, slash_context, LOGGER_NAME
 from utils.parsers import env
 
-VERSION = "0.0.2f"
+VERSION = "0.0.3"
 
 
 class StellaEmojiBot(commands.Bot):

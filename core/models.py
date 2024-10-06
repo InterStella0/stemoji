@@ -21,6 +21,17 @@ from core.typings import EContext, EInteraction, StellaEmojiBot
 from utils.general import emoji_context, LOGGER_NAME
 from utils.parsers import FuzzyInsensitive
 
+@dataclasses.dataclass
+class DownloadedEmoji:
+    name: str
+    image_bytes: bytes
+
+    @property
+    def id(self):
+        return 0
+
+    async def read(self):
+        return self.image_bytes
 
 @dataclasses.dataclass
 class PersonalEmoji:

@@ -8,7 +8,7 @@ import starlight
 
 from core import errors
 from core.errors import EmojiImageDuplicates, UserInputError
-from core.models import PersonalEmoji
+from core.models import PersonalEmoji, DownloadedEmoji
 from core.typings import EInteraction, EContext
 from utils.general import emoji_context, slash_context
 from utils.parsers import VALID_EMOJI_SEMI, VALID_EMOJI_NORMAL
@@ -214,7 +214,7 @@ async def saving_emoji_interaction(interaction: EInteraction, target_emoji: disc
     return emoji
 
 
-EMOJI_TARGET = PersonalEmoji | discord.Emoji | discord.PartialEmoji
+EMOJI_TARGET = PersonalEmoji | discord.Emoji | discord.PartialEmoji | DownloadedEmoji
 class SaveButton(discord.ui.Button[ContextView]):
     def __init__(self, target_emoji: EMOJI_TARGET | None = None, **kwargs):
         super().__init__(label="Save", style=discord.ButtonStyle.green, **kwargs)
