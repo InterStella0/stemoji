@@ -208,7 +208,7 @@ class Emoji(commands.GroupCog):
     @emoji_add.command(name="id")
     async def emoji_add_id(self, ctx: EContext, emoji: EmojiModel, name: str | None = None, is_animated: bool = False):
         """Adding emoji by copying the emoji id or giving <:id:name:>"""
-        async with ctx.typing():
+        async with ctx.typing(ephemeral=True):
             bot = ctx.bot
             emoji.animated = is_animated
             dups = await bot.find_image_duplicates(emoji)
@@ -359,6 +359,7 @@ async def steal_emoji(interaction: EInteraction, message: discord.Message):
     ctx = await bot.get_context(interaction)
     content = f"{message.content} {[embed.to_dict() for embed in message.embeds]}"  # Lazies woman in the world lol
     emojis = [*PersonalEmoji.find_all_emojis(bot, content)]
+    emojis.extend([PersonalEmoji(bot, r.emoji) for r in message.reactions if r.emoji.is_custom_emoji()])
     if not emojis:
         raise UserInputError("No custom emoji found!")
     elif len(emojis) > 1:
