@@ -1,17 +1,32 @@
 import os
+import typing
 from typing import Annotated
 
 import discord
 from discord.app_commands import Choice, Transformer
 from discord.ext import commands
 from discord.ext.commands import Converter
+from discord.utils import MISSING
 
 from core.errors import NotEmojiOwner, NotEmojiFavourite, UserInputError, InvalidEmoji
 from core.models import PersonalEmoji
 from core.typings import EInteraction, EContext
 
 
-class PersonalEmojiConverter(Converter[PersonalEmoji], Transformer):
+T = typing.TypeVar("T", bound=typing.Any)
+class DescribeConverter(Converter[T], Transformer, typing.Generic[T]):
+    __annotation_describe__: typing.Union[str, MISSING]
+
+    def __init_subclass__(cls, *, describe: str = MISSING):
+        super().__init_subclass__()
+        if describe is not MISSING:
+            cls.__annotation_describe__ = describe
+        else:
+            cls.__annotation_describe__ = cls.__doc__ or MISSING
+
+
+class PersonalEmojiConverter(DescribeConverter[PersonalEmoji]):
+    """You can use emoji id, name or <:emoji:id> format."""
     async def convert(self, ctx: EContext, argument: str) -> PersonalEmoji:
         return await PersonalEmoji.convert(ctx, argument)
 
@@ -21,7 +36,8 @@ class PersonalEmojiConverter(Converter[PersonalEmoji], Transformer):
     async def autocomplete(self, interaction: EInteraction, current: str) -> list[Choice[str]]:
         return await PersonalEmoji.autocomplete(interaction, current)
 
-class SearchEmojiConverter(Converter[PersonalEmoji], Transformer):
+class SearchEmojiConverter(DescribeConverter[PersonalEmoji]):
+    """You can use the full emoji id, name, partial name, or <:emoji:id> format."""
     async def convert(self, ctx: EContext, argument: str) -> PersonalEmoji | str:
         try:
             return await PersonalEmoji.convert(ctx, argument)
@@ -39,7 +55,7 @@ class SearchEmojiConverter(Converter[PersonalEmoji], Transformer):
 
 
 class PrivateEmojiConverter(PersonalEmojiConverter):
-    """Only the owner of the emoji OR owner of the bot can get this emoji."""
+    """Emoji that you've added to the bot. Accepts emoji id, name or <:emoji:id> format."""
     async def is_owner(self, user: discord.User, emoji: PersonalEmoji) -> bool:  # noqa
         return user == await emoji.resolve_owner() or await emoji.bot.is_owner(user)
 
@@ -62,7 +78,7 @@ class PrivateEmojiConverter(PersonalEmojiConverter):
 
 
 class FavouriteEmojiConverter(PersonalEmojiConverter):
-    """Only the owner of the emoji OR owner of the bot can get this emoji."""
+    """Emoji that you've favourited. Accepts emoji id, name or <:emoji:id> format."""
     async def convert(self, ctx: EContext, argument: str) -> PersonalEmoji:
         user = ctx.author
         emoji = await PersonalEmoji.convert(ctx, argument)
@@ -85,7 +101,8 @@ class FavouriteEmojiConverter(PersonalEmojiConverter):
         return await PersonalEmoji.autocomplete(interaction, current, fav_only=True)
 
 
-class EmojiConverter(commands.PartialEmojiConverter, Transformer):
+class EmojiConverter(commands.PartialEmojiConverter, DescribeConverter[discord.PartialEmoji], Transformer):
+    """Existing emoji on discord. Accepts emoji id, or <:emoji:id> format."""
     async def convert(self, ctx: EContext, argument: str) -> discord.PartialEmoji:
         try:
             return await super().convert(ctx, argument)

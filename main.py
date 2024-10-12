@@ -7,7 +7,7 @@ from discord.ext import commands
 from core.client import StellaEmojiBot
 from core.converter import PersonalEmojiModel, FavouriteEmojiModel
 from core.typings import EContext
-from utils.general import inline_pages
+from utils.general import inline_pages, describe
 from utils.parsers import env, TOKEN_REGEX
 
 tracemalloc.start()
@@ -16,6 +16,7 @@ bot = StellaEmojiBot()
 @bot.hybrid_command()
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
+@describe()
 async def e(ctx: EContext, emoji: PersonalEmojiModel):
     """Emoji slash shortcut to send an emoji."""
     await ctx.send(f"{emoji:u}")
@@ -23,6 +24,7 @@ async def e(ctx: EContext, emoji: PersonalEmojiModel):
 @bot.hybrid_command()
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
+@describe()
 async def ef(ctx: EContext, emoji: FavouriteEmojiModel):
     """Emoji Favourite shortcut to send your favourite emoji."""
     await ctx.send(f"{emoji:u}")
@@ -31,11 +33,11 @@ async def ef(ctx: EContext, emoji: FavouriteEmojiModel):
 @bot.hybrid_command()
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
+@describe()
 async def el(ctx: EContext, emoji: PersonalEmojiModel):
     """Get emoji link shortcut."""
     emoji.used(ctx.author)
     await ctx.send(f"{emoji.url}")
-
 
 
 @bot.command()

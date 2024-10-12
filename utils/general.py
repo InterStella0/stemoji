@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextvars
+import inspect
 import itertools
 import logging
 import re
@@ -9,6 +10,8 @@ from typing import AsyncGenerator
 
 import discord
 import starlight
+from discord import app_commands
+from discord.ext import commands
 
 from core.typings import EContext, EInteraction
 
@@ -85,3 +88,77 @@ async def inline_pages(
 
         if not item._future.done():
             item.format(embed=embed)
+
+
+# thx danny for this func :3
+# error prone for future dpy version, rember!
+resolve_annotation = discord.utils.resolve_annotation
+
+
+I = typing.TypeVar('I')  # identity usage only!
+MISSING = discord.utils.MISSING
+
+def find_describe_converter(annotation) -> str | MISSING:
+    from core.converter import DescribeConverter
+    if (
+        inspect.isclass(annotation) and issubclass(annotation, DescribeConverter)
+    ) or isinstance(annotation, DescribeConverter):
+        return annotation.__annotation_describe__
+    return MISSING
+
+
+def resolve_describe_converter(annotation) -> app_commands.locale_str | str | MISSING:
+    if getattr(annotation, '__origin__', None) is typing.Union:
+        for tp in annotation.__args__:
+            # when union, only the first describe converter is used if not MISSING.
+            desc = find_describe_converter(tp)
+            if desc is not MISSING:
+                return desc
+
+    return find_describe_converter(annotation)
+
+
+def describe(**params: app_commands.locale_str | str) -> typing.Callable[[I], I]:
+    def inner(func: I) -> I:
+        if isinstance(func, commands.Command):
+            for name, param in func.clean_params.items():
+                desc = resolve_describe_converter(param.annotation)
+                if param.description is None:
+                    if name in params:
+                        desc = params[name]
+
+                    if desc is not MISSING:
+                        func.params[name] = param.replace(description=desc)
+                else:
+                    if name not in params and desc is not MISSING:
+                        params[name] = desc
+        elif isinstance(func, (app_commands.Command, app_commands.Group)):
+            for name, param in func.parameters:
+                desc = resolve_describe_converter(param.annotation)
+                if name not in params and desc is not MISSING:
+                    params[name] = desc
+        else:
+            signature = commands.core.Signature.from_callable(func)
+            new_params = {}
+            for name, param in signature.parameters.items():
+                new_params[name] = param
+                if name in params:
+                    desc = params[param.name]
+                elif param.description is not None:
+                    desc = param.description
+                else:
+                    globalns = func.__globals__
+                    annotation = resolve_annotation(param.annotation, globalns, globalns, {})
+                    desc = resolve_describe_converter(annotation)
+
+                if desc is MISSING:
+                    continue
+
+                new_params[name] = param.replace(description=desc)
+                params[name] = desc
+
+            func.__signature__ = signature.replace(parameters=new_params.values())
+
+        return app_commands.describe(**params)(func)
+
+    return inner

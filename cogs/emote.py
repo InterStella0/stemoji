@@ -15,7 +15,7 @@ from core.models import PersonalEmoji, DownloadedEmoji
 from core.typings import EInteraction, EContext
 from core.ui_components import EmojiDownloadView, RenameEmojiModal, RenameEmojiButton, SendEmojiView, TextEmojiModal, \
     ContextViewAuthor, PaginationContextView, saving_emoji_interaction, SelectEmojiPagination, SaveButton
-from utils.general import inline_pages, slash_parse as _S
+from utils.general import inline_pages, slash_parse as _S, describe
 from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find_latest_unpaired_emoji, \
     VALID_EMOJI_NORMAL, FuzzyInsensitive
 
@@ -23,14 +23,15 @@ from utils.parsers import find_latest_unpaired_semicolon, VALID_EMOJI_SEMI, find
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @app_commands.allowed_installs(guilds=True, users=True)
 class Emoji(commands.GroupCog):
-
     @commands.hybrid_command()
+    @describe()
     async def link(self, ctx: EContext, emoji: PersonalEmojiModel):
         """Get emoji link for an emoji."""
         emoji.used(ctx.author)
         await ctx.send(f"{emoji.url}")
 
     @commands.hybrid_command()
+    @describe()
     async def send(self, ctx: EContext, emoji: PersonalEmojiModel):
         """Choosing how many emoji to send to the user. Text commands just sent the emoji normally."""
         if ctx.interaction:
@@ -42,6 +43,7 @@ class Emoji(commands.GroupCog):
         ctx.bot.dispatch('explicit_sent_emoji', ctx.author, emoji)
 
     @commands.hybrid_command(name="view")
+    @describe()
     async def _view(self, ctx: EContext, emoji: PersonalEmojiModel | None = None):
         """Detailed information about each emoji that was stored."""
         if emoji is not None:
@@ -87,6 +89,7 @@ class Emoji(commands.GroupCog):
             embed.description = list_emojis
 
     @commands.hybrid_command(name="text")
+    @describe(text="Text for the bot to send with emoji integrated by ;emoji; format.")
     async def _text(self, ctx: EContext, text: str | None = None) -> None:
         """Send messages using emojis which supports autocomplete of custom emojis."""
         if text is None:
@@ -148,6 +151,7 @@ class Emoji(commands.GroupCog):
         return default[:25]
 
     @commands.hybrid_command()
+    @describe()
     async def delete(self, ctx: EContext, emoji: PrivateEmojiModel):
         """Delete emoji that you own."""
         async with ctx.typing(ephemeral=True):
@@ -155,6 +159,7 @@ class Emoji(commands.GroupCog):
         await ctx.send(f"Successful deletion of **{emoji.name}**!")
 
     @commands.hybrid_command()
+    @describe()
     async def search(self, ctx: EContext, emoji: SearchEmojiConverter):
         name = getattr(emoji, "name", emoji)
         async with ctx.typing(ephemeral=True):
@@ -171,6 +176,7 @@ class Emoji(commands.GroupCog):
             ])
 
     @commands.hybrid_command(name='fav')
+    @describe()
     async def _fav(self, ctx: EContext, emoji: FavouriteEmojiModel):
         """Exclusively only use your favourite emoji"""
         await ctx.send(f"{emoji:u}")
@@ -206,6 +212,10 @@ class Emoji(commands.GroupCog):
         pass
 
     @emoji_add.command(name="id")
+    @describe(
+        name="Set or overwrite the emoji name.",
+        is_animated="Indicate whether the emoji is an animated emoji."
+    )
     async def emoji_add_id(self, ctx: EContext, emoji: EmojiModel, name: str | None = None, is_animated: bool = False):
         """Adding emoji by copying the emoji id or giving <:id:name:>"""
         async with ctx.typing(ephemeral=True):
@@ -227,6 +237,7 @@ class Emoji(commands.GroupCog):
         view.message = await ctx.send(embed=embed, file=file, view=view)
 
     @emoji_add.command(name="image")
+    @describe(name="Assign an emoji name.", image="The emoji image.")
     async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
         allowed_types = ('image/bmp', 'image/jpeg', 'image/x-png', 'image/webp', 'image/png', 'image/gif')
         async with ctx.typing(ephemeral=True):
@@ -244,6 +255,7 @@ class Emoji(commands.GroupCog):
         await saving_emoji_interaction(ctx, emoji)
 
     @fav.command('add')
+    @describe()
     async def fav_add(self, ctx: EContext, emoji: PersonalEmojiModel):
         """Add an emoji into your favourite list."""
         async with ctx.typing(ephemeral=True):
@@ -251,6 +263,7 @@ class Emoji(commands.GroupCog):
         await ctx.send(f"Favourited {emoji}")
 
     @fav.command('remove')
+    @describe()
     async def fav_remove(self, ctx: EContext, emoji: FavouriteEmojiModel):
         """Remove an emoji from your favourite list."""
         async with ctx.typing(ephemeral=True):
@@ -258,6 +271,7 @@ class Emoji(commands.GroupCog):
         await ctx.send(f"Unfavourited {emoji}")
 
     @commands.hybrid_command()
+    @describe(new_name="New emoji that you wanna rename to.")
     async def rename(self, ctx: EContext, emoji: PrivateEmojiModel, new_name: str | None = None):
         """Rename emoji that you own."""
         if new_name is None:
