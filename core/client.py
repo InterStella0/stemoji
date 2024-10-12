@@ -20,7 +20,7 @@ from core.typings import EContext
 from utils.general import emoji_context, slash_context, LOGGER_NAME
 from utils.parsers import env
 
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 
 
 class StellaEmojiBot(commands.Bot):
@@ -139,7 +139,7 @@ class StellaEmojiBot(commands.Bot):
     async def setup_hook(self):
         await self.db.init_database()
         await self.bot_metadata()
-        asyncio.create_task(self.sync_emojis())
+        _ = asyncio.create_task(self.sync_emojis())
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
             cogs.append('cogs.mirroring')

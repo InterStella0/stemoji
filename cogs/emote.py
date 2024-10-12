@@ -9,7 +9,8 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, SearchEmojiConverter, EmojiModel
+from core.converter import PersonalEmojiModel, PrivateEmojiModel, FavouriteEmojiModel, EmojiModel, \
+    SearchEmojiModel
 from core.errors import UserInputError
 from core.models import PersonalEmoji, DownloadedEmoji
 from core.typings import EInteraction, EContext
@@ -29,6 +30,20 @@ class Emoji(commands.GroupCog):
         """Get emoji link for an emoji."""
         emoji.used(ctx.author)
         await ctx.send(f"{emoji.url}")
+
+    @commands.hybrid_command()
+    @describe()
+    async def estimate(self, ctx: EContext, emoji: SearchEmojiModel):
+        """Get the closest valid emoji based on a given emoji."""
+        if isinstance(emoji, str):
+            name = emoji
+            ranked = starlight.search(ctx.bot.emojis_users.values(), name=FuzzyInsensitive(name), sort=True)
+            try:
+                emoji = next(iter(ranked))
+            except StopIteration:
+                raise UserInputError(f'No emoji found with "{emoji}" as emoji.')
+
+        await ctx.send(f"{emoji:u}")
 
     @commands.hybrid_command()
     @describe()
@@ -160,7 +175,7 @@ class Emoji(commands.GroupCog):
 
     @commands.hybrid_command()
     @describe()
-    async def search(self, ctx: EContext, emoji: SearchEmojiConverter):
+    async def search(self, ctx: EContext, emoji: SearchEmojiModel):
         name = getattr(emoji, "name", emoji)
         async with ctx.typing(ephemeral=True):
             ranked = starlight.search(ctx.bot.emojis_users.values(), name=FuzzyInsensitive(name), sort=True)

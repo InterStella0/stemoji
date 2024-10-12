@@ -1,14 +1,16 @@
 import tracemalloc
 
 import discord
+import starlight
 from discord import app_commands
 from discord.ext import commands
 
 from core.client import StellaEmojiBot
-from core.converter import PersonalEmojiModel, FavouriteEmojiModel
+from core.converter import PersonalEmojiModel, FavouriteEmojiModel, SearchEmojiModel
+from core.errors import UserInputError
 from core.typings import EContext
 from utils.general import inline_pages, describe
-from utils.parsers import env, TOKEN_REGEX
+from utils.parsers import env, TOKEN_REGEX, FuzzyInsensitive
 
 tracemalloc.start()
 bot = StellaEmojiBot()
@@ -38,6 +40,23 @@ async def el(ctx: EContext, emoji: PersonalEmojiModel):
     """Get emoji link shortcut."""
     emoji.used(ctx.author)
     await ctx.send(f"{emoji.url}")
+
+
+@bot.hybrid_command()
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@app_commands.allowed_installs(guilds=True, users=True)
+@describe()
+async def ee(ctx: EContext, emoji: SearchEmojiModel):
+    """Get the closest emoji shortcut."""
+    if isinstance(emoji, str):
+        name = emoji
+        ranked = starlight.search(ctx.bot.emojis_users.values(), name=FuzzyInsensitive(name), sort=True)
+        try:
+            emoji = next(iter(ranked))
+        except StopIteration:
+            raise UserInputError(f'No emoji found with "{emoji}" as emoji.')
+
+    await ctx.send(f"{emoji:u}")
 
 
 @bot.command()
