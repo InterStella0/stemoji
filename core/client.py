@@ -164,21 +164,25 @@ class StellaEmojiBot(commands.Bot):
         counter = new_meta.get("start_counter") or 0
         new_meta["start_counter"] = counter + 1
 
+        async def t():
+            await self._extension_loaded.wait()
+            self.log.info(f"Syncing slash command to discord in 10 seconds.")
+            await asyncio.sleep(10)
+            slashs = await self.tree.sync()
+            self.log.info(f"Synced {len(slashs)} commands.")
         if new_meta.get("first_time") is None or new_meta.get("first_time") is True:
-            async def t():
-                await self._extension_loaded.wait()
-                self.log.info(f"Version change detected. Syncing slash command to discord in 10 seconds.")
-                await asyncio.sleep(10)
-                slashs = await self.tree.sync()
-                self.log.info(f"Synced {len(slashs)} commands.")
-
-            asyncio.create_task(t())
+            self.log.info(f"Version change detected.")
+            _ = asyncio.create_task(t())
             new_meta["first_time"] = False
         else:
             info = datetime.datetime.now().astimezone().tzinfo
             self.log.info(f"Using {VERSION} since {meta.created_at.astimezone(info)}.")
             self.log.info(f"Bot start counter {new_meta['start_counter']}")
-            self.tree.update_slash_lookup(meta.data["slash_commands"])
+            if meta.data.get("slash_commands") is None:
+                self.log.info(f"Unable to find slash metadata.")
+                _ = asyncio.create_task(t())
+            else:
+                self.tree.update_slash_lookup(meta.data["slash_commands"])
 
         await self.db.update_metadata(meta.id, new_meta)
         self.log.debug(f"Bot metadata updated.")
