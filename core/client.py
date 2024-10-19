@@ -39,6 +39,8 @@ class StellaEmojiBot(commands.Bot):
             max_messages=None, chunk_guilds_at_startup=False, member_cache_flags=discord.MemberCacheFlags.none(),
             tree_cls=Tree
         )
+
+        self.is_owner_only: bool = env("OWNER_ONLY", bool)
         self.emojis_users: dict[int, PersonalEmoji] = {}
         self.emoji_names: dict[str, int] = {}
         self.emoji_filled: asyncio.Event = asyncio.Event()
@@ -100,10 +102,10 @@ class StellaEmojiBot(commands.Bot):
 
         return user
 
-    def called_everywhere(self, ctx: EContext): # noqa
+    async def called_everywhere(self, ctx: EContext): # noqa
         emoji_context.set(ctx.author)
         slash_context.set(ctx)
-        return True
+        return not self.is_owner_only or await self.is_owner(ctx.author)
 
     async def ensure_user(
             self, user: discord.User | discord.Member | discord.Object, __user_inserted=set()  # noqa, we're keeping state.
@@ -141,9 +143,16 @@ class StellaEmojiBot(commands.Bot):
         await self.bot_metadata()
         _ = asyncio.create_task(self.sync_emojis())
         _ = asyncio.create_task(self.is_owner(discord.Object(1)))
-        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling', 'jishaku']
+        cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
             cogs.append('cogs.mirroring')
+            try:
+                import jishaku  # noqa
+            except ImportError:
+                pass
+            else:
+                cogs.append('jishaku')
+                self.log.info("JISHAKU INSTALLED DETECTED.")
 
         for cog in cogs:
             await self.load_extension(cog)
@@ -298,7 +307,7 @@ class Tree(app_commands.CommandTree[StellaEmojiBot]):
     async def interaction_check(self, interaction: discord.Interaction[StellaEmojiBot], /) -> bool:
         emoji_context.set(interaction.user)
         slash_context.set(interaction)
-        return True
+        return not interaction.client.is_owner_only or await interaction.client.is_owner(interaction.user)
 
     def update_slash_lookup(self, app_mapping: dict[list[dict[str, Any]]]):
         self._slash_hashes.clear()
