@@ -9,14 +9,25 @@ the new application emoji features that supports up to 2000 custom emojis!
 
 Features includes:
   - Steal emoji from messages contents and reactions
-  - Steal server emojis (when external apps are allowed)
+  - Steal server emojis (when bot are added in the server)
 
-### Emoji management
-...
-### Set favourites to emojis
-...
-### Use in DMs
-...
+### Emoji Usage
+|               Simple                |              Texting Mode               |
+|:-----------------------------------:|:---------------------------------------:|
+| ![simple.gif](./readmes/simple.gif) | ![adaptive.gif](./readmes/adaptive.gif) | 
+|              **Fast**               |             **Searchable**              |
+|   ![fast.gif](./readmes/fast.gif)   |   ![search.gif](./readmes/search.gif)   | 
+
+Other features includes:
+- Listing out all emojis
+- Emoji management
+  - Adding, Renaming, Deleting
+  - Setting favourite emojis
+- Reacting with custom emojis
+
+### For use
+- Available on Direct Messages by user installs
+- Available for use in servers that allows external application installs.
 
 ## Self-host Configuration
 <details>
