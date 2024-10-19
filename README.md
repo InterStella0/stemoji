@@ -7,6 +7,10 @@ This is an open source discord bot that allows you to use customize emojis that 
 the new application emoji features that supports up to 2000 custom emojis! It is lightweight and simple to 
 set up.
 
+**Try it now:**
+- [Add To My Discord](https://discord.com/oauth2/authorize?client_id=1297004204350636112)
+- [Add To a Discord Server](https://discord.com/oauth2/authorize?client_id=1297004204350636112&permissions=1126312224049216&integration_type=0&scope=bot)
+
 ## Bot Feature
 ### Steal emojis
   ![stealing.gif](./readmes/steal_emoji.gif)
