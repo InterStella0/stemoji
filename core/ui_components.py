@@ -47,7 +47,10 @@ class ContextView(discord.ui.View):
         if interaction.response.is_done():
             await interaction.followup.send(error_message)
         else:
-            await interaction.response.send_message(error_message)
+            try:
+                await interaction.response.send_message(error_message)
+            except discord.NotFound:
+                await interaction.followup.send(error_message)
 
 
 class TextEmojiModal(ContextModal, title="Emoji Support"):
@@ -119,6 +122,7 @@ class SendEmojiView(ContextViewAuthor):
         self.send_messagex3_button.emoji = emoji.emoji
         self.remove_item(self.delete_sent_message)
         self.sent_message: discord.Message | None = None
+        self.content_over_limit = False
 
     def formatting_view(self):
         if self.sent_message is not None:
@@ -135,16 +139,27 @@ class SendEmojiView(ContextViewAuthor):
         emoji = self.emoji
         if self.sent_message is None:
             await interaction.response.send_message(f"{emoji:u}")
+            self.content_over_limit = False
             self.sent_message = await interaction.original_response()
             self.formatting_view()
             await self.message.edit(view=self)
         else:
             message = self.sent_message
             await interaction.response.defer()
-            try:
-                self.sent_message = await message.edit(content=f"{message.content} {emoji:u}")
-            except discord.NotFound:
-                self.sent_message = await interaction.followup.send(content=f"{emoji}")
+            if not self.content_over_limit:
+                try:
+                    self.sent_message = await message.edit(content=f"{message.content} {emoji:u}")
+                except discord.NotFound:
+                    self.sent_message = await interaction.followup.send(content=f"{emoji}")
+                except discord.HTTPException as e:
+                    TEXT_OVER_2000 = 50035
+                    if e.code == TEXT_OVER_2000:
+                        self.content_over_limit = True
+                        return
+                    else:
+                        raise
+
+                self.content_over_limit = False
 
     @discord.ui.button(label="Delete", style=discord.ButtonStyle.danger)
     async def delete_sent_message(self, interaction: EInteraction, button: discord.ui.Button):
@@ -159,16 +174,27 @@ class SendEmojiView(ContextViewAuthor):
         send_emoji = f"{emoji:u3} " * 3
         if self.sent_message is None:
             await interaction.response.send_message(send_emoji)
+            self.content_over_limit = False
             self.sent_message = await interaction.original_response()
             self.formatting_view()
             await self.message.edit(view=self)
         else:
             message = self.sent_message
             await interaction.response.defer()
-            try:
-                self.sent_message = await message.edit(content=f"{message.content} {send_emoji}")
-            except discord.NotFound:
-                self.sent_message = await interaction.followup.send(content=send_emoji)
+            if not self.content_over_limit:
+                try:
+                    self.sent_message = await message.edit(content=f"{message.content} {send_emoji}")
+                except discord.NotFound:
+                    self.sent_message = await interaction.followup.send(content=send_emoji)
+                except discord.HTTPException as e:
+                    TEXT_OVER_2000 = 50035
+                    if e.code == TEXT_OVER_2000:
+                        self.content_over_limit = True
+                        return
+                    else:
+                        raise
+
+                self.content_over_limit = False
 
 
 T = TypeVar('T')
