@@ -234,14 +234,12 @@ class PersonalEmoji:
     ) -> list[Choice[str]]:
         bot = interaction.client
         user_id = interaction.user.id
-        if task := bot.passive_bulk_user_usage(interaction.user):
-            await task
-
+        _ = bot.passive_bulk_user_usage(interaction.user)  # decided to fire and forget instead.
         if owner_only and not await bot.is_owner(interaction.user):
             source = [emoji for emoji in bot.emojis_users.values() if emoji.added_by == interaction.user]
         elif fav_only:
             if task := bot.passive_bulk_favourite_user(interaction.user):
-                await task
+                await task  # kinda strictly required so no choice
 
             source = [emoji for emoji in bot.emojis_users.values() if user_id in emoji.favourites]
         else:
