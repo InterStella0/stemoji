@@ -1,18 +1,27 @@
 # Stemoji
 
 This discord bot allows you to use customize emojis that you put in the bot. It utilizes
-the new application emoji features that supports up to 4000 custom emojis!
-
-**(this is still in development babes)**
+the new application emoji features that supports up to 2000 custom emojis!
 
 ## Bot Feature
-- Steal emojis from messages
-- Emoji management
-- Set favourites to emojis
-- User installs
+### Steal emojis
+  ![stealing.gif](./readmes/steal_emoji.gif)
 
+Features includes:
+  - Steal emoji from messages contents and reactions
+  - Steal server emojis (when external apps are allowed)
+
+### Emoji management
+...
+### Set favourites to emojis
+...
+### Use in DMs
+...
 
 ## Self-host Configuration
+<details>
+<summary>4 Steps to host your own stemoji bot.</summary>
+
 ### Clone the repository
 ```
 git clone https://github.com/InterStella0/stemoji
@@ -64,3 +73,4 @@ The description for each environment variable are described below.
 |       MIRROR_PROFILE        | Boolean |  FALSE   |            Uses your profile picture and display name as the bot's profile.             |
 |       RETAIN_PROFILE        | Boolean |   TRUE   | Recover your bot's profile during shutdown. **Only relevant if MIRROR_PROFILE is TRUE*. |
 |       BOT_NAME_SUFFIX       | String  |   bot    |    Add a name suffix on your bot's name **Only relevant if MIRROR_PROFILE is TRUE*.     |
+</details>
