@@ -1,5 +1,4 @@
 import asyncio
-import io
 import os
 
 import discord
@@ -176,6 +175,7 @@ class Emoji(commands.GroupCog):
     @commands.hybrid_command()
     @describe()
     async def search(self, ctx: EContext, emoji: SearchEmojiModel):
+        """Search for similar emojis by their name."""
         name = getattr(emoji, "name", emoji)
         async with ctx.typing(ephemeral=True):
             ranked = starlight.search(ctx.bot.emojis_users.values(), name=FuzzyInsensitive(name), sort=True)
@@ -232,12 +232,12 @@ class Emoji(commands.GroupCog):
         is_animated="Indicate whether the emoji is an animated emoji."
     )
     async def emoji_add_id(self, ctx: EContext, emoji: EmojiModel, name: str | None = None, is_animated: bool = False):
-        """Adding emoji by copying the emoji id or giving <:id:name:>"""
+        """Adding emoji by copying the emoji id or giving <:name:id> format."""
         async with ctx.typing(ephemeral=True):
-            bot = ctx.bot
             emoji.animated = is_animated
-            dups = await bot.find_image_duplicates(emoji)
+            dups = await ctx.bot.find_image_duplicates(emoji)
             emoji_name = name or emoji.name or f"Unknown{os.urandom(3).hex()}"
+            emoji.name = emoji_name
             file = await emoji.to_file(filename=f"{emoji_name}_emoji.{'gif' if is_animated else 'png'}")
         embed = discord.Embed(title=f"{emoji_name} Emoji")
         embed.description = "The emoji you're about to add."
