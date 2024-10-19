@@ -16,8 +16,8 @@ set up.
   ![stealing.gif](./readmes/steal_emoji.gif)
 
 Features includes:
-  - Steal emoji from messages contents and reactions
-  - Steal server emojis (when bot are added in the server)
+  - Steal emoji from messages contents and reactions.
+  - Steal server emojis (when bot are added in the server).
 
 ### Emoji Usage
 |               Simple                |              Texting Mode               |
@@ -27,15 +27,16 @@ Features includes:
 |   ![fast.gif](./readmes/fast.gif)   |   ![search.gif](./readmes/search.gif)   | 
 
 Other features includes:
-- Listing out all emojis
-- Emoji management
-  - Adding, Renaming, Deleting
-  - Setting favourite emojis
-- Reacting with custom emojis
+- Listing out all emojis.
+- Emoji management:
+  - Adding, renaming, and deleting your own emojis.
+  - Setting favourite emojis.
+- Reacting with custom emojis.
 
 ### For use
-- Available on Direct Messages by user installs
+- Available on Direct Messages by user installs.
 - Available for use in servers that allows external application installs.
+- Available for servers that adds the bot.
 
 ## Self-host Configuration
 <details>
