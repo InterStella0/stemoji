@@ -232,7 +232,7 @@ class Emoji(commands.GroupCog):
         is_animated="Indicate whether the emoji is an animated emoji."
     )
     async def emoji_add_id(self, ctx: EContext, emoji: EmojiModel, name: str | None = None, is_animated: bool = False):
-        """Adding emoji by copying the emoji id or giving <:name:id> format."""
+        """Adding an emoji by copying the emoji id or giving <:name:id> format."""
         async with ctx.typing(ephemeral=True):
             emoji.animated = is_animated
             dups = await ctx.bot.find_image_duplicates(emoji)
@@ -254,6 +254,7 @@ class Emoji(commands.GroupCog):
     @emoji_add.command(name="image")
     @describe(name="Assign an emoji name.", image="The emoji image.")
     async def emoji_add_image(self, ctx: EContext, name: str, image: discord.Attachment):
+        """Adding an emoji by upload an image or gif."""
         allowed_types = ('image/bmp', 'image/jpeg', 'image/x-png', 'image/webp', 'image/png', 'image/gif')
         async with ctx.typing(ephemeral=True):
             if image.content_type not in allowed_types:
