@@ -1,7 +1,11 @@
 # Stemoji
+![Code Size](https://img.shields.io/github/languages/code-size/InterStella0/stemoji?style=flat)
+![Total lines](https://tokei.rs/b1/github/InterStella0/stemoji?style=flat)
+![GitHub](https://img.shields.io/github/license/InterStella0/stemoji)
 
-This discord bot allows you to use customize emojis that you put in the bot. It utilizes
-the new application emoji features that supports up to 2000 custom emojis!
+This is an open source discord bot that allows you to use customize emojis that you put in the bot. It utilizes
+the new application emoji features that supports up to 2000 custom emojis! It is lightweight and simple to 
+set up.
 
 ## Bot Feature
 ### Steal emojis
