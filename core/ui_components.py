@@ -1,5 +1,6 @@
 import asyncio
 import io
+import re
 import traceback
 from typing import Any, TypeVar, Generic, Sequence, List
 
@@ -27,9 +28,9 @@ class ContextModal(discord.ui.Modal):
             error_message = "Something went wrong :/"
             traceback.print_exception(error)
         if interaction.response.is_done():
-            await interaction.followup.send(error_message)
+            await interaction.followup.send(error_message, ephemeral=True)
         else:
-            await interaction.response.send_message(error_message)
+            await interaction.response.send_message(error_message, ephemeral=True)
 
 
 class ContextView(discord.ui.View):
@@ -45,29 +46,31 @@ class ContextView(discord.ui.View):
             error_message = "Something went wrong :/"
             traceback.print_exception(error)
         if interaction.response.is_done():
-            await interaction.followup.send(error_message)
+            await interaction.followup.send(error_message, ephemeral=True)
         else:
             try:
-                await interaction.response.send_message(error_message)
+                await interaction.response.send_message(error_message, ephemeral=True)
             except discord.NotFound:
-                await interaction.followup.send(error_message)
+                await interaction.followup.send(error_message, ephemeral=True)
 
 
-class TextEmojiModal(ContextModal, title="Emoji Support"):
+class TextEmojiModal(ContextModal, title="Emoji Support Text"):
     text_to_send = discord.ui.TextInput(label="Text to send", style=discord.TextStyle.long)
 
     async def on_submit(self, interaction: EInteraction, /) -> None:
         text = self.text_to_send.value
         bot = interaction.client
+        if text.strip() == "":
+            raise UserInputError("You didn't write anything in the modal.")
 
-        def custom_emoji(match):
+        def custom_emoji(match: re.Match) -> str:
             if (emoji := bot.get_custom_emoji(match.group('emoji_name'))) is not None:
                 return f'{emoji:u}'
             return match.group(0)
 
-        def normal_emoji(match):
+        def normal_emoji(match: re.Match) -> str:
             if (emoji := bot.normal_emojis.get(match.group('emoji_name'))) is not None:
-                return emoji
+                return emoji.unicode
             return match.group(0)
 
         text = VALID_EMOJI_SEMI.sub(custom_emoji, text)
