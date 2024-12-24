@@ -105,10 +105,10 @@ class MirrorCog(commands.Cog):
         if not await bot.is_owner(before):
             return
 
-        if before.avatar != after.avatar:
-            self.client_user = await bot.user.edit(avatar=await after.avatar.read())
-        elif before.global_name != after.global_name:
-            self.client_user = await bot.user.edit(username=f"{after.global_name}{self.bot_suffixes}")
+        if before.display_avatar != after.display_avatar:
+            self.client_user = await bot.user.edit(avatar=await after.display_avatar.read())
+        elif before.display_name != after.display_name:
+            self.client_user = await bot.user.edit(username=f"{after.display_name}{self.bot_suffixes}")
 
 
 async def setup(bot: StellaEmojiBot) -> None:
