@@ -102,10 +102,11 @@ class MirrorCog(commands.Cog):
     @commands.Cog.listener()
     async def on_user_update(self, before: discord.User, after: discord.User):
         bot = self.bot
+        self.log.info(f"DETECTING USER UPDATE FOR {after}")
         if not await bot.is_owner(before):
             return
 
-        self.log.info(f"DETECTING USER UPDATE {after}")
+        self.log.info(f"DETECTING OWNER UPDATE FOR {after}")
         if before.display_avatar != after.display_avatar:
             self.log.info(f"DETECTING USER CHANGE {before.display_avatar} -> {after.display_avatar}")
             self.client_user = await bot.user.edit(avatar=await after.display_avatar.read())
