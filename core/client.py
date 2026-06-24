@@ -38,12 +38,23 @@ class StellaEmojiBot(commands.Bot):
         if env("TEXT_COMMAND_PREFIX_MENTION"):
             cmd_prefix = commands.when_mentioned_or(cmd_prefix)
 
+        chunks = False
+        guild_owner_id = None
+        member_cache_flags = discord.MemberCacheFlags.none()
+        if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
+            member_cache_flags = discord.MemberCacheFlags.all()
+            try:
+                guild_owner_id = env('OWNER_GUILD_ID', int)
+            except RuntimeError:
+                chunks = True
+
         super().__init__(
             cmd_prefix, intents=intents, strip_after_prefix=True, help_command=starlight.MenuHelpCommand(),
-            max_messages=None, chunk_guilds_at_startup=False, member_cache_flags=discord.MemberCacheFlags.none(),
+            max_messages=None, chunk_guilds_at_startup=chunks, member_cache_flags=member_cache_flags,
             tree_cls=Tree
         )
 
+        self.guild_owner_id: int | None = guild_owner_id
         self.is_owner_only: bool = env("OWNER_ONLY", bool)
         self.emojis_users: dict[int, PersonalEmoji] = {}
         self.emoji_names: dict[str, int] = {}
@@ -142,6 +153,15 @@ class StellaEmojiBot(commands.Bot):
         finally:
             self.emoji_filled.set()
 
+    async def chunk_owner(self):
+        await self.wait_until_ready()
+        guild = self.get_guild(self.guild_owner_id)
+        if guild is None:
+            self.log.warning(f"GUILD {self.guild_owner_id} is not cached! Mirroring will not work.")
+            return
+
+        await guild.chunk()
+
     async def setup_hook(self):
         await self.db.init_database()
         await self.bot_metadata()
@@ -149,6 +169,9 @@ class StellaEmojiBot(commands.Bot):
         _ = asyncio.create_task(self.is_owner(discord.Object(1)))
         cogs = ['cogs.emote', 'cogs.reactions', 'cogs.error_handling']
         if env('OWNER_ONLY', bool) and env('MIRROR_PROFILE', bool):
+            if self.guild_owner_id is not None:
+                _ = asyncio.create_task(self.chunk_owner())
+
             cogs.append('cogs.mirroring')
             try:
                 import jishaku  # noqa
