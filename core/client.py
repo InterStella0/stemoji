@@ -27,10 +27,14 @@ class StellaEmojiBot(commands.Bot):
     tree: Tree
 
     def __init__(self) -> None:
+        log = logging.getLogger(LOGGER_NAME)
         intents = discord.Intents.default()
         intents.message_content = env("MESSAGE_CONTENT_INTENTS", bool)
         intents.members = env("MEMBERS_INTENTS", bool)
+        log.info(f"MESSAGE_CONTENT_INTENTS: {intents.message_content}")
+        log.info(f"MEMBERS_INTENTS: {intents.members}")
         cmd_prefix = env("TEXT_COMMAND_PREFIX")
+
         if env("TEXT_COMMAND_PREFIX_MENTION"):
             cmd_prefix = commands.when_mentioned_or(cmd_prefix)
 
@@ -59,7 +63,7 @@ class StellaEmojiBot(commands.Bot):
         self._fetched_user_usage: set[int] = set()
         self._fetched_fav_usage: set[int] = set()
         self._extension_loaded: asyncio.Event = asyncio.Event()
-        self.log = logging.getLogger(LOGGER_NAME)
+        self.log = log
         self.session: aiohttp.ClientSession | None = None
 
     def passive_bulk_user_usage(self, user: discord.User | discord.Member | discord.Object) -> asyncio.Task | None:
